@@ -24,26 +24,22 @@
         
         body { 
             font-family: 'Inter', sans-serif; 
-            background-color: #0f172a; /* Slate-900 */
+            background-color: #0f172a; 
             color: #e2e8f0;
-            overflow: hidden; /* 禁止整个页面滚动，交由内部容器处理 */
+            overflow: hidden;
         }
 
-        /* 隐藏滚动条但保留功能 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* 自定义滚动条 (用于侧边栏) */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
 
-        /* 动画 */
         .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
 
-        /* 拖拽手柄 */
         .resize-handle {
             width: 16px; height: 16px;
             background: #38bdf8;
@@ -56,32 +52,25 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
 
-        /* 滑块美化 */
         input[type=range] { -webkit-appearance: none; background: transparent; }
         input[type=range]::-webkit-slider-thumb { 
             -webkit-appearance: none; height: 16px; width: 16px; 
             border-radius: 50%; background: #38bdf8; 
             margin-top: -6px; cursor: pointer; border: 2px solid #0f172a;
         }
-        input[type=range]::-webkit-slider-runnable-track { 
-            width: 100%; height: 4px; 
-            background: #334155; border-radius: 2px; 
-        }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #334155; border-radius: 2px; }
 
         .font-poster { font-family: 'Impact', 'Arial Black', sans-serif; letter-spacing: 0.02em; }
         
         .bg-grid-pattern {
             background-image: 
-                linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
-            background-size: 24px 24px;
+                linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 20px 20px;
         }
         
         .input-dark {
-            background-color: #1e293b;
-            border: 1px solid #334155;
-            color: white;
-            transition: all 0.2s;
+            background-color: #1e293b; border: 1px solid #334155; color: white; transition: all 0.2s;
         }
         .input-dark:focus { border-color: #38bdf8; outline: none; }
     </style>
@@ -90,9 +79,9 @@
     <div id="root" class="h-full flex flex-col"></div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef } from 'react';
+        import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Image, Settings, Sparkles, Download, AlertCircle, Loader2, Key, Palette, Trash2, LayoutTemplate, Camera, ChevronLeft, Type, AlignCenter, AlignLeft, AlignRight, Pipette, Maximize, Smartphone, Monitor, Square, Ratio, MoveDiagonal, Layers, Plus, Box, Upload, ArrowRight, HelpCircle, CheckCircle2, X, MousePointer2, Sliders, Lightbulb, GraduationCap, Grip } from 'lucide-react';
+        import { Image, Settings, Sparkles, Download, AlertCircle, Loader2, Key, Palette, Trash2, LayoutTemplate, Camera, ChevronLeft, Type, AlignCenter, AlignLeft, AlignRight, Pipette, Maximize, Smartphone, Monitor, Square, Ratio, MoveDiagonal, Layers, Plus, Box, Upload, ArrowRight, HelpCircle, CheckCircle2, X, MousePointer2, Sliders, Lightbulb, GraduationCap, Grip, RefreshCcw } from 'lucide-react';
 
         const App = () => {
             // --- 状态管理 ---
@@ -109,9 +98,13 @@
             // 模式与尺寸
             const [mode, setMode] = useState('text2img'); 
             const [sizeMode, setSizeMode] = useState('preset');
-            const [presetSize, setPresetSize] = useState('768x1024');
-            const [customW, setCustomW] = useState('768');
+            const [presetSize, setPresetSize] = useState('576x1024'); // 默认 9:16
+            const [customW, setCustomW] = useState('576');
             const [customH, setCustomH] = useState('1024');
+
+            // 画布自适应尺寸 (计算后)
+            const [canvasStyle, setCanvasStyle] = useState({ width: '300px', height: '533px' });
+            const canvasContainerRef = useRef(null);
 
             // Text2Img
             const [prompt, setPrompt] = useState('');
@@ -120,7 +113,7 @@
             const [fusionBg, setFusionBg] = useState(null);
             const [fusionItems, setFusionItems] = useState([]);
             const [selectedItemId, setSelectedItemId] = useState(null);
-            const [fusionPrompt, setFusionPrompt] = useState('cinematic lighting, realistic shadows, perfect blending, 8k resolution, commercial photography');
+            const [fusionPrompt, setFusionPrompt] = useState('cinematic lighting, realistic shadows, perfect blending, 8k resolution');
             const [fusionStrength, setFusionStrength] = useState(0.55);
             
             // 拖拽逻辑
@@ -131,14 +124,14 @@
 
             const fileInputBgRef = useRef(null);
             const fileInputItemRef = useRef(null);
-            const compositionRef = useRef(null);
+            const compositionRef = useRef(null); // 融合模式画布
+            const posterRef = useRef(null); // 结果画布
 
             // 海报文字
             const [posterTitle, setPosterTitle] = useState('FUSION ART');
             const [posterSubtitle, setPosterSubtitle] = useState('AI GENERATED DESIGN');
             const [textColor, setTextColor] = useState('#ffffff');
             const [textAlign, setTextAlign] = useState('center');
-            const posterRef = useRef(null);
 
             // 初始化
             useEffect(() => {
@@ -147,9 +140,53 @@
                 if (storedKey) setApiKey(storedKey);
                 if (storedBaseUrl) setBaseUrl(storedBaseUrl);
 
-                const hasSeenTutorial = localStorage.getItem('doro_poster_tutorial_seen_v4'); 
+                const hasSeenTutorial = localStorage.getItem('doro_poster_tutorial_seen_v5'); 
                 if (!hasSeenTutorial) setShowTutorial(true);
             }, []);
+
+            // --- 智能画布尺寸计算 (核心修复) ---
+            const calculateCanvasSize = () => {
+                if (!canvasContainerRef.current) return;
+
+                // 获取容器可用空间
+                const containerWidth = canvasContainerRef.current.clientWidth - 48; // 减去 padding
+                const containerHeight = canvasContainerRef.current.clientHeight - 48;
+
+                // 获取目标比例
+                let targetW, targetH;
+                if (sizeMode === 'custom') {
+                    targetW = parseFloat(customW) || 100;
+                    targetH = parseFloat(customH) || 100;
+                } else {
+                    const [w, h] = presetSize.split('x').map(Number);
+                    targetW = w;
+                    targetH = h;
+                }
+                const targetRatio = targetW / targetH;
+                const containerRatio = containerWidth / containerHeight;
+
+                let finalW, finalH;
+
+                if (containerRatio > targetRatio) {
+                    // 容器更宽，以高度为基准
+                    finalH = containerHeight;
+                    finalW = finalH * targetRatio;
+                } else {
+                    // 容器更高，以宽度为基准
+                    finalW = containerWidth;
+                    finalH = finalW / targetRatio;
+                }
+
+                setCanvasStyle({ width: `${finalW}px`, height: `${finalH}px` });
+            };
+
+            // 监听尺寸变化
+            useLayoutEffect(() => {
+                calculateCanvasSize();
+                window.addEventListener('resize', calculateCanvasSize);
+                return () => window.removeEventListener('resize', calculateCanvasSize);
+            }, [presetSize, customW, customH, sizeMode, canvasContainerRef.current]);
+
 
             // --- 交互逻辑 (拖拽/缩放) ---
             const handleMouseDown = (e, itemId, type) => {
@@ -221,15 +258,31 @@
                 try {
                     const cleanBaseUrl = baseUrl.replace(/\/$/, '');
                     const endpoint = cleanBaseUrl.endsWith('/v1') ? `${cleanBaseUrl}/images/generations` : `${cleanBaseUrl}/v1/images/generations`;
-                    let payload = { model: 'nano-banana', n: 1, size: sizeMode === 'custom' ? `${customW}x${customH}` : presetSize };
+                    
+                    // 确保宽高是整数
+                    const width = sizeMode === 'custom' ? parseInt(customW) : parseInt(presetSize.split('x')[0]);
+                    const height = sizeMode === 'custom' ? parseInt(customH) : parseInt(presetSize.split('x')[1]);
+                    
+                    let payload = { model: 'nano-banana', n: 1, size: `${width}x${height}` };
 
                     if (mode === 'fusion') {
                         if (!fusionBg) throw new Error("请先上传环境背景图");
+                        
                         const tempSelected = selectedItemId; setSelectedItemId(null);
-                        await new Promise(r => setTimeout(r, 50)); 
+                        await new Promise(r => setTimeout(r, 100)); // 等待UI刷新
+
                         if (!compositionRef.current) throw new Error("拼贴区域未加载");
-                        const canvas = await html2canvas(compositionRef.current, { useCORS: true, backgroundColor: null, scale: 1 });
+                        
+                        // 关键修复：使用 scale 2 保证高清，并且让 html2canvas 捕获实际比例
+                        const canvas = await html2canvas(compositionRef.current, { 
+                            useCORS: true, 
+                            backgroundColor: null, 
+                            scale: 2, // 提高截图质量
+                            logging: false
+                        });
+                        
                         setSelectedItemId(tempSelected);
+                        
                         payload.prompt = fusionPrompt;
                         payload.image = canvas.toDataURL('image/png').split(',')[1];
                         payload.strength = parseFloat(fusionStrength);
@@ -238,23 +291,29 @@
                         payload.prompt = prompt;
                     }
 
-                    const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, body: JSON.stringify(payload) });
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                        body: JSON.stringify(payload)
+                    });
+
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error?.message || '生成失败');
                     if (data.data?.[0]?.url) setResultImage(data.data[0].url); else throw new Error('API 返回数据为空');
+
                 } catch (err) { setError(err.message); } finally { setLoading(false); }
             };
 
             const downloadPoster = async () => {
                 if (!posterRef.current) return;
                 try {
-                    const canvas = await html2canvas(posterRef.current, { useCORS: true, scale: 2, backgroundColor: '#000' });
+                    const canvas = await html2canvas(posterRef.current, { useCORS: true, scale: 3, backgroundColor: '#000' });
                     const link = document.createElement('a'); link.download = `doro-poster-${Date.now()}.png`; link.href = canvas.toDataURL('image/png'); link.click();
                 } catch (e) { setError("保存失败"); }
             };
 
             const closeTutorial = (dontShow) => {
-                setShowTutorial(false); if (dontShow) localStorage.setItem('doro_poster_tutorial_seen_v4', 'true');
+                setShowTutorial(false); if (dontShow) localStorage.setItem('doro_poster_tutorial_seen_v5', 'true');
             };
 
             // --- 组件: 尺寸选择器 ---
@@ -270,9 +329,9 @@
                     {sizeMode === 'preset' ? (
                         <div className="relative">
                             <select value={presetSize} onChange={e => setPresetSize(e.target.value)} className="input-dark w-full rounded-lg px-3 py-2.5 text-sm outline-none appearance-none font-medium cursor-pointer">
-                                <option value="768x1152">海报 2:3 (768x1152)</option>
-                                <option value="768x1024">标准 3:4 (768x1024)</option>
                                 <option value="576x1024">手机 9:16 (576x1024)</option>
+                                <option value="768x1024">标准 3:4 (768x1024)</option>
+                                <option value="768x1152">海报 2:3 (768x1152)</option>
                                 <option value="1024x1024">方形 1:1 (1024x1024)</option>
                                 <option value="1024x768">横版 4:3 (1024x768)</option>
                                 <option value="1024x576">宽屏 16:9 (1024x576)</option>
@@ -315,14 +374,12 @@
                         </div>
                     </nav>
 
-                    {/* Tutorial Modal (Responsive Fix) */}
+                    {/* Tutorial Modal */}
                     {showTutorial && (
                         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
                             <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl h-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden relative">
                                 <button onClick={() => closeTutorial(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white z-20 bg-slate-900/50 rounded-full p-1"><X size={20}/></button>
-                                
                                 <div className="flex flex-col md:flex-row h-full overflow-hidden">
-                                    {/* Sidebar / Tabs */}
                                     <div className="w-full md:w-56 bg-slate-950 border-b md:border-b-0 md:border-r border-slate-800 p-4 flex flex-row md:flex-col gap-2 shrink-0 overflow-x-auto">
                                         <button onClick={() => setTutorialTab('fusion')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${tutorialTab === 'fusion' ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/20' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}>
                                             <Layers size={16}/> 物品融合
@@ -331,41 +388,27 @@
                                             <Sparkles size={16}/> 文生海报
                                         </button>
                                     </div>
-                                    
-                                    {/* Content */}
                                     <div className="flex-1 p-6 md:p-8 overflow-y-auto bg-slate-900">
                                         {tutorialTab === 'fusion' ? (
                                             <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
                                                 <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><Layers className="text-purple-400"/> 物品融合模式</h2>
-                                                <p className="text-slate-400 text-sm">将您的产品图上传并融入AI生成的背景，制作电商海报。</p>
-                                                
+                                                <p className="text-slate-400 text-sm">通过“拼贴 + AI重绘”，将产品完美融入任何背景。</p>
                                                 <div className="space-y-4">
-                                                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
-                                                        <h4 className="text-white font-bold text-sm mb-1 flex items-center gap-2"><span className="bg-purple-500/20 text-purple-400 w-5 h-5 rounded-full flex items-center justify-center text-xs">1</span> 上传素材</h4>
-                                                        <p className="text-xs text-slate-400">上传背景图 + 产品图（推荐透明底PNG）。支持拖拽和缩放。</p>
-                                                    </div>
-                                                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
-                                                        <h4 className="text-white font-bold text-sm mb-1 flex items-center gap-2"><span className="bg-purple-500/20 text-purple-400 w-5 h-5 rounded-full flex items-center justify-center text-xs">2</span> 调节融合度</h4>
-                                                        <p className="text-xs text-slate-400">数值越低越像原图，数值越高光影越自然但可能改变形状。推荐 0.5-0.6。</p>
-                                                    </div>
+                                                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50"><h4 className="text-white font-bold text-sm mb-1">1. 上传素材</h4><p className="text-xs text-slate-400">上传背景图 + 产品图（推荐透明底PNG）。</p></div>
+                                                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50"><h4 className="text-white font-bold text-sm mb-1">2. 调节融合度</h4><p className="text-xs text-slate-400">数值推荐 0.5-0.6。</p></div>
                                                 </div>
                                             </div>
                                         ) : (
                                             <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
                                                 <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><Sparkles className="text-blue-400"/> 文生海报模式</h2>
                                                 <p className="text-slate-400 text-sm">输入文字提示，AI 自动生成创意海报背景。</p>
-                                                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
-                                                    <h4 className="text-white font-bold text-sm mb-1">提示词技巧</h4>
-                                                    <p className="text-xs text-slate-400">主体 + 环境 + 光照 + 风格。例如：赛博朋克街道，雨夜，霓虹灯，8k画质。</p>
-                                                </div>
+                                                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50"><h4 className="text-white font-bold text-sm mb-1">提示词技巧</h4><p className="text-xs text-slate-400">主体 + 环境 + 光照 + 风格。</p></div>
                                             </div>
                                         )}
                                     </div>
                                 </div>
                                 <div className="p-4 bg-slate-950 border-t border-slate-800 flex justify-between items-center shrink-0">
-                                    <button onClick={() => closeTutorial(true)} className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-2">
-                                        <div className="w-4 h-4 border border-slate-600 rounded"></div> 不再显示
-                                    </button>
+                                    <button onClick={() => closeTutorial(true)} className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-2"><div className="w-4 h-4 border border-slate-600 rounded"></div> 不再显示</button>
                                     <button onClick={() => closeTutorial(false)} className="px-6 py-2 bg-white text-slate-900 font-bold text-xs rounded-lg hover:bg-slate-200">开始</button>
                                 </div>
                             </div>
@@ -387,7 +430,7 @@
                     {/* Main Content Layout */}
                     <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
                         
-                        {/* Left Sidebar: Controls (Fixed width on desktop, stacked on mobile) */}
+                        {/* Left Sidebar: Controls */}
                         <div className="w-full lg:w-[420px] xl:w-[460px] bg-[#0f172a] border-b lg:border-b-0 lg:border-r border-slate-800 flex flex-col z-10 shrink-0 h-[40vh] lg:h-full shadow-2xl">
                             <div className="flex-1 overflow-y-auto p-5 space-y-6 no-scrollbar">
                                 
@@ -408,13 +451,7 @@
                                                 {fusionBg ? (
                                                     <>
                                                         <img src={fusionBg} className="w-full h-full object-cover rounded opacity-60" />
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); setFusionBg(null); }}
-                                                            className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-600 text-white rounded-full p-1 transition-colors z-10"
-                                                            title="删除背景"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
+                                                        <button onClick={(e) => { e.stopPropagation(); setFusionBg(null); }} className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-600 text-white rounded-full p-1 z-10"><X size={12} /></button>
                                                     </>
                                                 ) : (
                                                     <div className="text-slate-500 group-hover:text-slate-300 flex flex-col items-center transition-colors"><Image size={20} className="mb-1"/><span className="text-xs font-bold">背景图</span></div>
@@ -428,7 +465,7 @@
                                             </div>
                                         </div>
 
-                                        {/* Items List with Delete Buttons */}
+                                        {/* Items List */}
                                         {fusionItems.length > 0 && (
                                             <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                                                 {fusionItems.map((item, idx) => (
@@ -437,15 +474,7 @@
                                                             <img src={item.src} className="w-full h-full object-cover"/>
                                                         </div>
                                                         <div className="absolute top-0 left-0 bg-black/60 text-[8px] px-1 rounded-br text-white">{idx + 1}</div>
-                                                        
-                                                        {/* Delete Item Button */}
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
-                                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-md hover:bg-red-600 transition-colors z-20"
-                                                            title="删除物品"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
+                                                        <button onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-md hover:bg-red-600 transition-colors z-20"><X size={12} /></button>
                                                     </div>
                                                 ))}
                                             </div>
@@ -458,10 +487,6 @@
                                                 <span className="text-xs text-purple-400 font-mono">{fusionStrength}</span>
                                             </div>
                                             <input type="range" min="0.1" max="0.9" step="0.05" value={fusionStrength} onChange={e => setFusionStrength(e.target.value)} className="w-full mb-1"/>
-                                            <div className="flex justify-between text-[10px] text-slate-500 font-medium px-1">
-                                                <span>保留细节</span>
-                                                <span>深度重绘</span>
-                                            </div>
                                         </div>
                                         <textarea value={fusionPrompt} onChange={e => setFusionPrompt(e.target.value)} className="input-dark w-full h-20 rounded-xl p-3 text-xs resize-none" placeholder="融合提示词 (可选)..."/>
                                     </div>
@@ -503,41 +528,61 @@
                             </div>
                         </div>
 
-                        {/* Right: Canvas Area (Takes remaining space) */}
+                        {/* Right: Canvas Area */}
                         <div className="flex-1 bg-[#020617] relative flex flex-col overflow-hidden">
                             <div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none"></div>
                             
-                            <div className="flex-1 overflow-auto p-6 lg:p-10 flex items-center justify-center">
-                                {/* Fusion Preview */}
-                                {mode === 'fusion' && !resultImage && (
-                                    <div className="w-full max-w-full flex flex-col items-center">
-                                        <div className="text-xs text-slate-500 mb-4 bg-slate-900/80 px-3 py-1.5 rounded-full border border-slate-800 backdrop-blur font-medium flex items-center gap-2">
-                                            <Grip size={12}/> {fusionBg ? "拖拽物品调整位置 · 右下角手柄缩放" : "请先上传背景"}
-                                        </div>
-                                        <div ref={compositionRef} className="relative bg-slate-900/50 border-2 border-dashed border-slate-800 rounded shadow-2xl transition-all duration-300 overflow-hidden" style={{ aspectRatio: sizeMode === 'custom' ? `${customW}/${customH}` : presetSize.replace('x', '/'), width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '65vh' }}>
-                                            {fusionBg ? <img src={fusionBg} className="w-full h-full object-cover pointer-events-none select-none" /> : <div className="w-full h-full flex flex-col items-center justify-center text-slate-700 min-w-[300px] min-h-[400px]"><Image size={48} className="opacity-20"/></div>}
-                                            {fusionItems.map(item => (
-                                                <div key={item.id} className={`absolute select-none group ${selectedItemId === item.id ? 'z-50 cursor-move' : 'z-10 cursor-pointer'}`} style={{ left: `${item.x}%`, top: `${item.y}%`, width: `${item.scale}%`, transform: 'translate(-50%, -50%)' }} onMouseDown={e => handleMouseDown(e, item.id, 'move')} onTouchStart={e => handleMouseDown(e, item.id, 'move')}>
-                                                    <div className={`relative ${selectedItemId === item.id ? 'ring-2 ring-purple-500' : ''}`}>
-                                                        <img src={item.src} className="w-full h-auto drop-shadow-xl pointer-events-none" />
-                                                        {selectedItemId === item.id && <div className="resize-handle" onMouseDown={e => handleMouseDown(e, item.id, 'resize')} onTouchStart={e => handleMouseDown(e, item.id, 'resize')} data-html2canvas-ignore="true" />}
-                                                    </div>
+                            {/* Canvas Container - Flex Center */}
+                            <div ref={canvasContainerRef} className="flex-1 w-full h-full flex items-center justify-center p-6 overflow-hidden">
+                                
+                                {/* Dynamic Canvas */}
+                                {(!resultImage && !loading && mode === 'fusion') && (
+                                    <div 
+                                        ref={compositionRef}
+                                        className="relative bg-slate-900 border-2 border-dashed border-slate-700 shadow-2xl transition-all duration-300 overflow-hidden"
+                                        style={canvasStyle} // 动态应用计算出的尺寸
+                                    >
+                                        {fusionBg ? (
+                                            <img src={fusionBg} className="w-full h-full object-cover pointer-events-none select-none" alt="Background"/>
+                                        ) : (
+                                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-600">
+                                                <Image size={48} className="mb-4 opacity-10"/>
+                                                <p className="text-sm font-medium opacity-50">预览区域</p>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Draggable Items */}
+                                        {fusionItems.map(item => (
+                                            <div
+                                                key={item.id}
+                                                className={`absolute select-none group ${selectedItemId === item.id ? 'z-50 cursor-move' : 'z-10 cursor-pointer'}`}
+                                                style={{
+                                                    left: `${item.x}%`, top: `${item.y}%`, width: `${item.scale}%`, transform: 'translate(-50%, -50%)',
+                                                }}
+                                                onMouseDown={(e) => handleMouseDown(e, item.id, 'move')}
+                                                onTouchStart={(e) => handleMouseDown(e, item.id, 'move')}
+                                            >
+                                                <div className={`relative ${selectedItemId === item.id ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : 'group-hover:ring-1 group-hover:ring-white/30'}`}>
+                                                    <img src={item.src} className="w-full h-auto drop-shadow-2xl pointer-events-none" alt="item"/>
+                                                    {selectedItemId === item.id && (
+                                                        <div className="resize-handle" onMouseDown={(e) => handleMouseDown(e, item.id, 'resize')} onTouchStart={(e) => handleMouseDown(e, item.id, 'resize')} data-html2canvas-ignore="true"/>
+                                                    )}
                                                 </div>
-                                            ))}
-                                        </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
 
-                                {/* Result Image */}
+                                {/* Result Image Display */}
                                 {resultImage && !loading && (
-                                    <div className="flex flex-col gap-6 items-center animate-fade-in w-full">
-                                        <div ref={posterRef} className="relative bg-black shadow-2xl shadow-black/50 overflow-hidden border border-slate-800" style={{ aspectRatio: mode === 'text2img' ? (sizeMode === 'custom' ? `${customW}/${customH}` : presetSize.replace('x', '/')) : 'auto', maxHeight: '70vh', maxWidth: '100%' }}>
+                                    <div className="flex flex-col gap-6 items-center animate-fade-in">
+                                        <div ref={posterRef} className="relative bg-black shadow-2xl shadow-black/50 overflow-hidden border border-slate-800" style={{ ...canvasStyle }}>
                                             <img src={resultImage} className="w-full h-full object-contain" crossOrigin="anonymous" />
                                             {mode === 'text2img' && (
-                                                <div className={`absolute inset-0 flex flex-col justify-end p-8 z-10 text-${textAlign}`}>
+                                                <div className={`absolute inset-0 flex flex-col justify-end p-10 z-10 text-${textAlign}`}>
                                                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-80"></div>
-                                                    <div className="relative z-20 space-y-2">
-                                                        <h1 className="text-4xl md:text-6xl font-poster uppercase drop-shadow-xl leading-none tracking-wide" style={{color: textColor, textShadow: '0 4px 30px rgba(0,0,0,0.9)'}}>{posterTitle}</h1>
+                                                    <div className="relative z-20 space-y-3">
+                                                        <h1 className="text-4xl md:text-5xl font-poster uppercase drop-shadow-xl leading-none tracking-wide" style={{color: textColor, textShadow: '0 4px 30px rgba(0,0,0,0.9)'}}>{posterTitle}</h1>
                                                         <p className="text-xs md:text-sm tracking-[0.4em] uppercase font-light text-white/90">{posterSubtitle}</p>
                                                     </div>
                                                 </div>
@@ -550,11 +595,11 @@
                                     </div>
                                 )}
 
-                                {/* Loading State */}
+                                {/* Loading */}
                                 {loading && (
-                                    <div className="flex flex-col items-center gap-4">
-                                        <div className="w-12 h-12 border-4 border-slate-800 border-t-sky-500 rounded-full animate-spin"></div>
-                                        <p className="text-sky-200/80 text-sm font-medium animate-pulse">AI 正在绘制...</p>
+                                    <div className="flex flex-col items-center gap-6">
+                                        <div className="w-16 h-16 border-4 border-slate-800 border-t-sky-500 rounded-full animate-spin"></div>
+                                        <p className="text-sky-200/80 font-medium animate-pulse tracking-wide text-sm uppercase">AI Generating...</p>
                                     </div>
                                 )}
 
@@ -577,3 +622,5 @@
     </script>
 </body>
 </html>
+
+
