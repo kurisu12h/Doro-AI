@@ -20,7 +20,6 @@
         .animate-fade-in { animation: fadeIn 0.5s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .tag-btn:active { transform: scale(0.95); }
-        /* 隐藏滚动条但保留功能 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -31,7 +30,7 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { ChevronLeft, FlaskConical, Sparkles, Copy, Trash2, ArrowRight, Tag, Sun, Camera, Palette, Layers } from 'lucide-react';
+        import { ChevronLeft, FlaskConical, Sparkles, Copy, Trash2, ArrowRight, Tag, Sun, Camera, Palette, Layers, Info } from 'lucide-react';
 
         // 双语标签库
         const CATEGORIES = [
@@ -96,7 +95,6 @@
             const [basePrompt, setBasePrompt] = useState('');
             const [selectedTags, setSelectedTags] = useState([]);
 
-            // 切换标签选中状态 (存储英文)
             const toggleTag = (tagEn) => {
                 if (selectedTags.includes(tagEn)) {
                     setSelectedTags(selectedTags.filter(t => t !== tagEn));
@@ -105,24 +103,25 @@
                 }
             };
 
-            // 组合最终 Prompt
             const finalPrompt = [basePrompt, ...selectedTags].filter(Boolean).join(', ');
 
-            // 复制功能
             const handleCopy = () => {
                 navigator.clipboard.writeText(finalPrompt);
-                // 简单的视觉反馈逻辑略
+                alert('提示词已复制到剪贴板！');
             };
 
-            // 发送到主页
+            // 发送到主页逻辑 - 指向 index.html
             const handleUse = () => {
-                // 将 prompt 存入 localStorage，供主页读取
+                // 1. 保存到 LocalStorage
                 localStorage.setItem('doro_active_prompt', finalPrompt);
-                // 跳转回主页
-                window.location.href = 'doro_ai_local.html';
+                
+                // 2. 尝试跳转到 index.html
+                const targetFile = 'index.html';
+                
+                // 如果文件不存在或不匹配，浏览器会报 404，这里我们尽量做到提示
+                window.location.href = targetFile;
             };
 
-            // 辅助函数：根据英文找中文（用于Preview显示）
             const findZh = (en) => {
                 for (const cat of CATEGORIES) {
                     const found = cat.tags.find(t => t.en === en);
@@ -133,11 +132,12 @@
 
             return (
                 <div className="min-h-screen flex flex-col pb-20 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black font-sans">
+                    
                     {/* Nav */}
                     <nav className="border-b border-white/10 bg-black/40 backdrop-blur-md sticky top-0 z-50">
                         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                                <a href="doro_ai_local.html" className="p-2 hover:bg-white/10 rounded-full transition-colors"><ChevronLeft size={24}/></a>
+                                <a href="index.html" className="p-2 hover:bg-white/10 rounded-full transition-colors"><ChevronLeft size={24}/></a>
                                 <div className="flex items-center gap-2">
                                     <div className="bg-purple-500/20 p-2 rounded-lg border border-purple-500/30">
                                         <FlaskConical size={20} className="text-purple-400" />
