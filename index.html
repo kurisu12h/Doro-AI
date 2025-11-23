@@ -36,6 +36,14 @@
         .animate-fade-in {
             animation: fade-in-up 0.4s ease-out forwards;
         }
+        /* 弹窗进入动画 */
+        @keyframes scale-in {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-scale-in {
+            animation: scale-in 0.2s ease-out forwards;
+        }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
@@ -65,20 +73,32 @@
             background: #4b5563;
             border-radius: 2px;
         }
+        /* 滚动条隐藏 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
     </style>
 </head>
-<body class="bg-slate-900">
+<body class="bg-slate-900 overflow-x-hidden">
     <div id="root"></div>
 
     <!-- React 代码逻辑 -->
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Image, Settings, Sparkles, Download, AlertCircle, Loader2, Key, Palette, Trash2, ExternalLink, Wand2, RefreshCw, LayoutTemplate, Camera, ListFilter, Upload, X, ScanFace } from 'lucide-react';
+        import { Image, Settings, Sparkles, Download, AlertCircle, Loader2, Key, Palette, Trash2, ExternalLink, Wand2, RefreshCw, LayoutTemplate, Camera, ListFilter, Upload, X, ScanFace, Info, ShieldAlert, LogOut, CheckCircle2 } from 'lucide-react';
 
         const App = () => {
             // --- 状态管理 ---
             
+            // 界面状态
+            const [showWelcome, setShowWelcome] = useState(true);
+            const [showSettingsModal, setShowSettingsModal] = useState(false);
+
             // API 配置
             const [apiKey, setApiKey] = useState('');
             const [baseUrl, setBaseUrl] = useState('https://api.bltcy.ai/v1');
@@ -89,7 +109,6 @@
             const [loading, setLoading] = useState(false);
             const [resultImage, setResultImage] = useState(null);
             const [error, setError] = useState('');
-            const [showSettings, setShowSettings] = useState(false);
             
             // 模型相关
             const [model, setModel] = useState('nano-banana');
@@ -114,16 +133,35 @@
 
             // 初始化
             useEffect(() => {
-                setApiKey(localStorage.getItem('plato_api_key') || '');
-                setBaseUrl(localStorage.getItem('plato_base_url') || 'https://api.bltcy.ai/v1');
-                setDeepseekApiKey(localStorage.getItem('deepseek_api_key') || '');
+                const storedKey = localStorage.getItem('plato_api_key');
+                const storedBaseUrl = localStorage.getItem('plato_base_url');
+                const storedDeepseekKey = localStorage.getItem('deepseek_api_key');
+
+                if (storedKey) setApiKey(storedKey);
+                if (storedBaseUrl) setBaseUrl(storedBaseUrl);
+                if (storedDeepseekKey) setDeepseekApiKey(storedDeepseekKey);
+                
+                // 如果已经配置过Key，且不是强制刷新，可以考虑不自动弹出Welcome（可选逻辑，这里保持每次刷新显示Welcome作为启动页）
+                // 也可以增加一个 localStorage 标记 'has_seen_welcome' 来控制
             }, []);
 
             const handleSaveSettings = () => {
                 localStorage.setItem('plato_api_key', apiKey);
                 localStorage.setItem('plato_base_url', baseUrl);
                 localStorage.setItem('deepseek_api_key', deepseekApiKey);
-                setShowSettings(false);
+                setShowSettingsModal(false);
+            };
+
+            const handleResetSettings = () => {
+                if(confirm('确定要清除所有本地配置吗？这将移除保存的 API Key。')) {
+                    localStorage.removeItem('plato_api_key');
+                    localStorage.removeItem('plato_base_url');
+                    localStorage.removeItem('deepseek_api_key');
+                    setApiKey('');
+                    setDeepseekApiKey('');
+                    setBaseUrl('https://api.bltcy.ai/v1');
+                    alert('已重置。');
+                }
             };
 
             // --- 功能函数 ---
@@ -132,12 +170,10 @@
             const handleImageUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-
                 if (file.size > 5 * 1024 * 1024) {
                     setError("图片大小不能超过 5MB");
                     return;
                 }
-
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     setInitImage(reader.result);
@@ -154,7 +190,7 @@
             const fetchModels = async () => {
                 if (!apiKey) {
                     setError('请先配置生图 API Key');
-                    setShowSettings(true);
+                    setShowSettingsModal(true);
                     return;
                 }
                 setLoadingModels(true);
@@ -199,7 +235,7 @@
             const callDeepseekApi = async (userPrompt, mode) => {
                 if (!deepseekApiKey) {
                     setError('请先在设置中配置 Deepseek API Key 以使用灵感功能');
-                    setShowSettings(true);
+                    setShowSettingsModal(true);
                     return;
                 }
                 setIsDeepseekLoading(true);
@@ -253,7 +289,11 @@
 
             // 3. 生图
             const generateImage = async () => {
-                if (!apiKey) return setError('请先在设置中配置 API Key');
+                if (!apiKey) {
+                    setError('请先在设置中配置 API Key');
+                    setShowSettingsModal(true);
+                    return;
+                }
                 if (!prompt) return setError('请输入画面描述 (Prompt)');
 
                 setLoading(true);
@@ -277,10 +317,9 @@
 
                     // 图生图逻辑
                     if (initImage) {
-                        // 移除 base64 头部 (data:image/png;base64,)
                         const base64Data = initImage.split(',')[1];
-                        payload.image = base64Data; // 标准 JSON 图生图参数
-                        payload.strength = parseFloat(strength); // 重绘幅度
+                        payload.image = base64Data;
+                        payload.strength = parseFloat(strength);
                         console.log("正在使用图生图模式...");
                     }
 
@@ -342,6 +381,138 @@
             return (
                 <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 text-white font-sans selection:bg-pink-500 selection:text-white pb-10">
                 
+                {/* --- Welcome Overlay --- */}
+                {showWelcome && (
+                    <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center p-4 animate-fade-in text-center">
+                        <div className="max-w-2xl w-full bg-white/5 border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden">
+                            {/* 装饰背景 */}
+                            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500"></div>
+                            
+                            <div className="flex justify-center mb-6">
+                                <div className="p-4 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl shadow-lg shadow-pink-500/30">
+                                    <Palette size={48} className="text-white" />
+                                </div>
+                            </div>
+                            
+                            <h1 className="text-4xl font-bold mb-2 tracking-tight">欢迎使用 Doro AI Studio</h1>
+                            <p className="text-gray-400 mb-8">Designed by Chenhao Huang</p>
+                            
+                            <div className="space-y-6 text-left mb-8">
+                                <div className="flex gap-4 items-start bg-black/20 p-4 rounded-xl">
+                                    <div className="bg-pink-500/20 p-2 rounded-lg text-pink-400"><Info size={20}/></div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-200 mb-1">如何使用?</h3>
+                                        <p className="text-sm text-gray-400">
+                                            1. 获取 <span className="text-pink-400">API Key</span> (支持柏拉图/Deepseek)。<br/>
+                                            2. 点击右上角 <Settings size={12} className="inline"/> 齿轮图标进行配置。<br/>
+                                            3. 输入灵感，开始创作！
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4 items-start bg-black/20 p-4 rounded-xl">
+                                    <div className="bg-yellow-500/20 p-2 rounded-lg text-yellow-400"><ShieldAlert size={20}/></div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-200 mb-1">免责条款</h3>
+                                        <p className="text-sm text-gray-400">
+                                            本工具仅提供接口调用服务，所有生成内容均由 AI 模型产生。使用者需自行承担生成内容带来的法律风险，请勿生成违法违规图像。
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={() => setShowWelcome(false)}
+                                className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-pink-500/25 transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2"
+                            >
+                                我已了解，开始创作 <CheckCircle2 size={20}/>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- Settings Modal (Global) --- */}
+                {showSettingsModal && (
+                    <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                        <div className="bg-[#1a1b26] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl animate-scale-in relative overflow-hidden flex flex-col max-h-[90vh]">
+                            {/* Modal Header */}
+                            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-black/20">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <Settings size={22} className="text-pink-500"/> 全局设置
+                                </h2>
+                                <button onClick={() => setShowSettingsModal(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                                    <X size={20} className="text-gray-400"/>
+                                </button>
+                            </div>
+
+                            {/* Modal Body - Scrollable */}
+                            <div className="p-6 overflow-y-auto no-scrollbar space-y-6">
+                                {/* Section 1: Image Gen */}
+                                <div>
+                                    <h3 className="text-sm text-pink-400 font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <Image size={14}/> 生图服务配置
+                                    </h3>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-xs text-gray-400 mb-1">API Base URL</label>
+                                            <input type="text" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.bltcy.ai/v1" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-pink-500 transition-colors" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-400 mb-1">API Key</label>
+                                            <div className="relative">
+                                                <Key size={16} className="absolute left-3 top-3.5 text-gray-500" />
+                                                <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-pink-500 transition-colors" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="h-px bg-white/5"></div>
+
+                                {/* Section 2: LLM */}
+                                <div>
+                                    <h3 className="text-sm text-purple-400 font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <Wand2 size={14}/> 灵感/Deepseek 配置
+                                    </h3>
+                                    <div>
+                                        <label className="block text-xs text-gray-400 mb-1">Deepseek API Key</label>
+                                        <div className="relative">
+                                            <Key size={16} className="absolute left-3 top-3.5 text-gray-500" />
+                                            <input type="password" value={deepseekApiKey} onChange={(e) => setDeepseekApiKey(e.target.value)} placeholder="sk-..." className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-purple-500 transition-colors" />
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-2">用于提示词润色和灵感生成。</p>
+                                    </div>
+                                </div>
+
+                                <div className="h-px bg-white/5"></div>
+
+                                {/* Section 3: System */}
+                                <div>
+                                    <h3 className="text-sm text-gray-400 font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <ShieldAlert size={14}/> 系统操作
+                                    </h3>
+                                    <button 
+                                        onClick={handleResetSettings}
+                                        className="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-sm py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <LogOut size={16}/> 重置所有数据 & 清除 Key
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className="p-6 border-t border-white/10 bg-black/20">
+                                <button 
+                                    onClick={handleSaveSettings}
+                                    className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 rounded-xl transition-colors shadow-lg shadow-pink-500/20"
+                                >
+                                    保存配置并关闭
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Navbar */}
                 <nav className="border-b border-white/10 bg-black/20 backdrop-blur-md sticky top-0 z-50">
                     <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -352,12 +523,12 @@
                         <span className="font-bold text-xl tracking-tight">Doro AI <span className="text-pink-400 font-light">Studio</span></span>
                     </div>
                     <button 
-                        onClick={() => setShowSettings(!showSettings)}
-                        className="p-2 hover:bg-white/10 rounded-full transition-colors relative group"
-                        title="设置"
+                        onClick={() => setShowSettingsModal(true)}
+                        className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-all border border-white/10 relative group"
+                        title="打开设置"
                     >
-                        <Settings size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-                        {(!apiKey || !deepseekApiKey) && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
+                        <Settings size={20} className="group-hover:rotate-90 transition-transform duration-500 text-gray-200" />
+                        {(!apiKey) && <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full animate-pulse border-2 border-slate-900"></span>}
                     </button>
                     </div>
                 </nav>
@@ -366,31 +537,7 @@
                     
                     {/* Left Panel: Controls */}
                     <div className="w-full lg:w-1/3 flex flex-col gap-6 animate-fade-in-up">
-                    
-                        {/* Settings Card */}
-                        {(showSettings || !apiKey || !deepseekApiKey) && (
-                            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm shadow-xl">
-                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                                <Settings size={18} /> API 配置
-                            </h2>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">生图 API Base URL</label>
-                                    <input type="text" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.bltcy.ai/v1" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-pink-400 transition-colors" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">生图 API Key</label>
-                                    <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-pink-400 transition-colors" />
-                                </div>
-                                <div className="border-t border-white/10 pt-4">
-                                    <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">Deepseek API Key</label>
-                                    <input type="password" value={deepseekApiKey} onChange={(e) => setDeepseekApiKey(e.target.value)} placeholder="sk-..." className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-pink-400 transition-colors" />
-                                </div>
-                                <button onClick={handleSaveSettings} className="w-full bg-pink-600/80 hover:bg-pink-600 text-white text-sm py-2 rounded-lg transition-colors font-medium">保存配置</button>
-                            </div>
-                            </div>
-                        )}
-
+                        
                         {/* Creation Panel */}
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm shadow-xl flex-1 flex flex-col gap-6">
                             
@@ -489,7 +636,7 @@
                                         type="text" 
                                         value={inspirationInput}
                                         onChange={(e) => setInspirationInput(e.target.value)}
-                                        placeholder="输入主题 (如: 赛博朋克猫)"
+                                        placeholder="灵感主题 (如: 赛博朋克猫)"
                                         className="flex-1 bg-transparent text-sm focus:outline-none placeholder-gray-500"
                                         onKeyDown={(e) => e.key === 'Enter' && inspirationInput && callDeepseekApi(inspirationInput, 'inspiration')}
                                     />
@@ -611,7 +758,7 @@
                         {resultImage && !loading && (
                             <div className="relative animate-fade-in flex flex-col items-center gap-4">
                                 
-                                {/* 核心展示区：根据是否海报模式变化 */}
+                                {/* 核心展示区 */}
                                 <div 
                                     ref={posterRef}
                                     className={`relative transition-all duration-500 overflow-hidden ${
@@ -634,17 +781,17 @@
                                     {/* 海报覆盖层 */}
                                     {isPosterMode && (
                                         <div className="absolute inset-0 flex flex-col justify-end">
-                                            {/* 渐变遮罩 */}
-                                            <div className="h-1/2 bg-gradient-to-t from-black via-black/60 to-transparent"></div>
+                                            {/* 渐变遮罩 - 已优化：颜色更淡，避免出现明显黑块 */}
+                                            <div className="h-2/3 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
                                             {/* 文字内容 */}
                                             <div className="relative z-10 p-6 text-center pb-8">
-                                                <h1 className="text-4xl md:text-5xl font-poster text-white tracking-widest uppercase mb-2 drop-shadow-lg" style={{textShadow: '0 2px 10px rgba(0,0,0,0.8)'}}>
+                                                <h1 className="text-4xl md:text-5xl font-poster text-white tracking-widest uppercase mb-2 drop-shadow-2xl" style={{textShadow: '0 4px 12px rgba(0,0,0,0.6)'}}>
                                                     {posterTitle}
                                                 </h1>
-                                                <div className="flex items-center justify-center gap-3 text-xs md:text-sm text-gray-300 tracking-[0.2em] uppercase font-light">
-                                                    <span className="w-8 h-[1px] bg-pink-500"></span>
+                                                <div className="flex items-center justify-center gap-3 text-xs md:text-sm text-gray-200 tracking-[0.2em] uppercase font-light drop-shadow-md">
+                                                    <span className="w-8 h-[1px] bg-pink-500 box-shadow-lg"></span>
                                                     {posterSubtitle}
-                                                    <span className="w-8 h-[1px] bg-pink-500"></span>
+                                                    <span className="w-8 h-[1px] bg-pink-500 box-shadow-lg"></span>
                                                 </div>
                                             </div>
                                             {/* 装饰性边框 */}
