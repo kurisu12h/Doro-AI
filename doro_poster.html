@@ -2,12 +2,11 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Doro AI Poster Pro - 专业海报工坊</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- 引入 html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <script type="importmap">
@@ -27,7 +26,8 @@
             font-family: 'Inter', sans-serif; 
             background-color: #0f172a; 
             color: #e2e8f0;
-            overflow: hidden;
+            overflow: hidden; /* 核心：禁止页面级滚动 */
+            touch-action: none; /* 防止移动端橡皮筋效果 */
         }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -42,22 +42,22 @@
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
 
         .resize-handle {
-            width: 16px; height: 16px;
+            width: 24px; height: 24px; /* 手柄调大，方便手指触摸 */
             background: #38bdf8;
-            border: 2px solid white;
+            border: 3px solid white;
             border-radius: 50%;
             position: absolute;
-            bottom: -8px; right: -8px;
+            bottom: -12px; right: -12px;
             cursor: se-resize;
             z-index: 50;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
         }
 
         input[type=range] { -webkit-appearance: none; background: transparent; }
         input[type=range]::-webkit-slider-thumb { 
-            -webkit-appearance: none; height: 16px; width: 16px; 
+            -webkit-appearance: none; height: 20px; width: 20px; /* 滑块调大 */
             border-radius: 50%; background: #38bdf8; 
-            margin-top: -6px; cursor: pointer; border: 2px solid #0f172a;
+            margin-top: -8px; cursor: pointer; border: 2px solid #0f172a;
         }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #334155; border-radius: 2px; }
 
@@ -76,7 +76,7 @@
         .input-dark:focus { border-color: #38bdf8; outline: none; }
     </style>
 </head>
-<body class="h-screen flex flex-col">
+<body class="h-screen flex flex-col fixed inset-0"> <!-- fixed inset-0 强制全屏 -->
     <div id="root" class="h-full flex flex-col"></div>
 
     <script type="text/babel" data-type="module">
@@ -103,8 +103,8 @@
             const [customW, setCustomW] = useState('576');
             const [customH, setCustomH] = useState('1024');
 
-            // 画布自适应尺寸
-            const [canvasStyle, setCanvasStyle] = useState({ width: '300px', height: '533px' });
+            // 核心修复：画布尺寸样式
+            const [canvasStyle, setCanvasStyle] = useState({ width: '100%', height: '100%' });
             const canvasContainerRef = useRef(null);
 
             // Text2Img
@@ -141,43 +141,75 @@
                 if (storedKey) setApiKey(storedKey);
                 if (storedBaseUrl) setBaseUrl(storedBaseUrl);
 
-                const hasSeenTutorial = localStorage.getItem('doro_poster_tutorial_seen_v7'); 
+                const hasSeenTutorial = localStorage.getItem('doro_poster_tutorial_seen_v9'); 
                 if (!hasSeenTutorial) setShowTutorial(true);
             }, []);
 
-            // --- 智能画布尺寸计算 ---
+            // --- 核心修复：使用 ResizeObserver 强制计算画布尺寸 ---
             const calculateCanvasSize = () => {
                 if (!canvasContainerRef.current) return;
-                const containerWidth = canvasContainerRef.current.clientWidth - 48; 
-                const containerHeight = canvasContainerRef.current.clientHeight - 48;
 
+                // 1. 获取容器的绝对真实宽高 (getBoundingClientRect 最准)
+                const rect = canvasContainerRef.current.getBoundingClientRect();
+                const containerW = rect.width - 32; // 减去 padding (p-4 = 16px * 2)
+                const containerH = rect.height - 32;
+
+                if (containerW <= 0 || containerH <= 0) return; // 还没渲染好，跳过
+
+                // 2. 获取目标比例
                 let targetW, targetH;
                 if (sizeMode === 'custom') {
                     targetW = parseFloat(customW) || 100;
                     targetH = parseFloat(customH) || 100;
                 } else {
                     const [w, h] = presetSize.split('x').map(Number);
-                    targetW = w; targetH = h;
+                    targetW = w;
+                    targetH = h;
                 }
                 const targetRatio = targetW / targetH;
-                const containerRatio = containerWidth / containerHeight;
+                const containerRatio = containerW / containerH;
 
                 let finalW, finalH;
+                
+                // 3. 包含算法 (Contain) - 保证完全显示且尽可能大
                 if (containerRatio > targetRatio) {
-                    finalH = containerHeight; finalW = finalH * targetRatio;
+                    // 容器更宽，高度撑满，宽度自动
+                    finalH = containerH;
+                    finalW = finalH * targetRatio;
                 } else {
-                    finalW = containerWidth; finalH = finalW / targetRatio;
+                    // 容器更高，宽度撑满，高度自动
+                    finalW = containerW;
+                    finalH = finalW / targetRatio;
                 }
-                setCanvasStyle({ width: `${finalW}px`, height: `${finalH}px` });
+
+                // 4. 设置样式，强制应用像素值
+                setCanvasStyle({ 
+                    width: `${finalW}px`, 
+                    height: `${finalH}px`,
+                    minWidth: '200px', // 防止极小塌缩
+                    minHeight: '200px'
+                });
             };
 
-            useLayoutEffect(() => {
-                calculateCanvasSize();
-                window.addEventListener('resize', calculateCanvasSize);
-                return () => window.removeEventListener('resize', calculateCanvasSize);
-            }, [presetSize, customW, customH, sizeMode, canvasContainerRef.current]);
+            // 使用 ResizeObserver 监听容器变化 (最稳健的方法)
+            useEffect(() => {
+                const element = canvasContainerRef.current;
+                if (!element) return;
 
-            // --- 交互逻辑 ---
+                const observer = new ResizeObserver(() => {
+                    calculateCanvasSize();
+                });
+
+                observer.observe(element);
+                
+                // 初始调用一次
+                calculateCanvasSize();
+
+                return () => observer.disconnect();
+            }, [presetSize, customW, customH, sizeMode]); // 依赖项变化时也会触发重算
+
+
+            // --- 交互逻辑 (拖拽/缩放) ---
             const handleMouseDown = (e, itemId, type) => {
                 e.stopPropagation(); e.preventDefault();
                 setSelectedItemId(itemId); setIsDragging(true); setDragType(type);
@@ -239,13 +271,11 @@
             const updateItem = (id, changes) => setFusionItems(items => items.map(i => i.id === id ? { ...i, ...changes } : i));
             const deleteItem = (id) => { setFusionItems(items => items.filter(i => i.id !== id)); if (selectedItemId === id) setSelectedItemId(null); };
 
-            // --- 生成核心 (修复版) ---
+            // --- 生成核心 ---
             const generateImage = async () => {
                 if (!apiKey) { setShowSettings(true); return setError('请先配置 API Key'); }
                 setLoading(true); setError(''); 
-                // 注意：这里不立即 setResultImage(null)，防止 dom 卸载导致截图失败
-                // 我们用 loading 状态覆盖 UI
-
+                
                 try {
                     const cleanBaseUrl = baseUrl.replace(/\/$/, '');
                     const endpoint = cleanBaseUrl.endsWith('/v1') ? `${cleanBaseUrl}/images/generations` : `${cleanBaseUrl}/v1/images/generations`;
@@ -257,38 +287,30 @@
 
                     if (mode === 'fusion') {
                         if (!fusionBg) throw new Error("请先上传环境背景图");
-                        if (!compositionRef.current) throw new Error("拼贴区域初始化失败，请刷新重试");
-
-                        // 临时取消选中，避免截取到操作框
-                        const tempSelected = selectedItemId;
-                        setSelectedItemId(null);
                         
-                        // 给 React 一点时间渲染状态变化
-                        await new Promise(r => setTimeout(r, 50));
+                        const tempSelected = selectedItemId; setSelectedItemId(null);
+                        await new Promise(r => setTimeout(r, 100));
 
-                        try {
-                            const canvas = await window.html2canvas(compositionRef.current, { 
-                                useCORS: true, 
-                                backgroundColor: null, // 保持透明
-                                scale: 2, // 提高截图精度
-                                logging: false
-                            });
-                            payload.image = canvas.toDataURL('image/png').split(',')[1];
-                        } catch (screenshotErr) {
-                            console.error(screenshotErr);
-                            throw new Error("截图失败，请检查背景图是否跨域或重试");
-                        } finally {
-                            setSelectedItemId(tempSelected);
-                        }
+                        if (!compositionRef.current) throw new Error("拼贴区域未加载");
+                        
+                        // 截图时强制使用 scale 2 保证清晰度，同时 width/height 必须传 null 让其自动计算
+                        const canvas = await window.html2canvas(compositionRef.current, { 
+                            useCORS: true, 
+                            backgroundColor: null, 
+                            scale: 2, 
+                            logging: false 
+                        });
+                        
+                        setSelectedItemId(tempSelected);
                         
                         payload.prompt = fusionPrompt;
+                        payload.image = canvas.toDataURL('image/png').split(',')[1];
                         payload.strength = parseFloat(fusionStrength);
                     } else {
                         if (!prompt) throw new Error("请输入提示词");
                         payload.prompt = prompt;
                     }
 
-                    // 发起请求前清空旧图
                     setResultImage(null);
 
                     const response = await fetch(endpoint, {
@@ -298,14 +320,10 @@
                     });
 
                     const data = await response.json();
-                    if (!response.ok) throw new Error(data.error?.message || 'API 请求失败');
+                    if (!response.ok) throw new Error(data.error?.message || '生成失败');
                     if (data.data?.[0]?.url) setResultImage(data.data[0].url); else throw new Error('API 返回数据为空');
 
-                } catch (err) { 
-                    setError(err.message); 
-                } finally { 
-                    setLoading(false); 
-                }
+                } catch (err) { setError(err.message); } finally { setLoading(false); }
             };
 
             const downloadPoster = async () => {
@@ -317,7 +335,7 @@
             };
 
             const closeTutorial = (dontShow) => {
-                setShowTutorial(false); if (dontShow) localStorage.setItem('doro_poster_tutorial_seen_v7', 'true');
+                setShowTutorial(false); if (dontShow) localStorage.setItem('doro_poster_tutorial_seen_v9', 'true');
             };
 
             // --- 组件: 尺寸选择器 ---
@@ -377,7 +395,7 @@
                         </div>
                     </nav>
 
-                    {/* Settings & Tutorial (省略部分代码，逻辑一致) */}
+                    {/* Tutorial & Settings (Hidden for brevity, logic same as before) */}
                     {showSettings && (
                         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
                             <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
@@ -430,7 +448,7 @@
 
                     <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
                         
-                        {/* Left Sidebar */}
+                        {/* Left Sidebar: Controls */}
                         <div className="w-full lg:w-[420px] xl:w-[460px] bg-[#0f172a] border-b lg:border-b-0 lg:border-r border-slate-800 flex flex-col z-10 shrink-0 h-[40vh] lg:h-full shadow-2xl">
                             <div className="flex-1 overflow-y-auto p-5 space-y-6 no-scrollbar">
                                 {/* Mode Tabs */}
@@ -520,16 +538,17 @@
                         <div className="flex-1 bg-[#020617] relative flex flex-col overflow-hidden">
                             <div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none"></div>
                             
-                            <div ref={canvasContainerRef} className="flex-1 w-full h-full flex items-center justify-center p-6 overflow-hidden">
+                            {/* Canvas Container (核心：flex-1 w-full p-4) */}
+                            <div ref={canvasContainerRef} className="flex-1 w-full h-full flex items-center justify-center p-4 overflow-hidden relative">
                                 
-                                {/* Fusion Preview (Always Rendered if Fusion Mode, hidden if Result) */}
+                                {/* Fusion Preview */}
                                 {mode === 'fusion' && (
                                     <div 
                                         className={`flex flex-col items-center transition-opacity duration-300 ${resultImage ? 'opacity-0 pointer-events-none absolute' : 'opacity-100 relative'}`}
                                         style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                                     >
                                         {!resultImage && (
-                                            <div className="text-xs text-slate-500 mb-4 bg-slate-900/80 px-3 py-1.5 rounded-full border border-slate-800 backdrop-blur font-medium flex items-center gap-2">
+                                            <div className="absolute top-6 text-xs text-slate-500 mb-4 bg-slate-900/80 px-3 py-1.5 rounded-full border border-slate-800 backdrop-blur font-medium flex items-center gap-2 z-20">
                                                 <Grip size={12}/> {fusionBg ? "拖拽物品调整位置 · 右下角手柄缩放" : "请先上传背景"}
                                             </div>
                                         )}
@@ -537,7 +556,13 @@
                                         <div 
                                             ref={compositionRef}
                                             className="relative bg-slate-900 border-2 border-dashed border-slate-700 shadow-2xl transition-all duration-300 overflow-hidden"
-                                            style={canvasStyle}
+                                            // 直接应用计算出的绝对像素宽高，确保物理尺寸正确
+                                            style={{
+                                                width: canvasStyle.width,
+                                                height: canvasStyle.height,
+                                                minWidth: '200px',
+                                                minHeight: '200px'
+                                            }}
                                         >
                                             {fusionBg ? (
                                                 <img src={fusionBg} className="w-full h-full object-cover pointer-events-none select-none" alt="Background"/>
