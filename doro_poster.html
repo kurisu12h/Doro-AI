@@ -404,8 +404,21 @@
                                 {mode === 'fusion' && (
                                     <div className="space-y-5 animate-fade-in">
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div onClick={() => fileInputBgRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer h-24 transition-all group ${fusionBg ? 'border-green-500/50 bg-green-500/5' : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}>
-                                                {fusionBg ? <img src={fusionBg} className="w-full h-full object-cover rounded opacity-60" /> : <div className="text-slate-500 group-hover:text-slate-300 flex flex-col items-center"><Image size={20} className="mb-1"/><span className="text-xs font-bold">背景图</span></div>}
+                                            <div onClick={() => fileInputBgRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer h-24 transition-all group relative overflow-hidden ${fusionBg ? 'border-green-500/50 bg-green-500/5' : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}>
+                                                {fusionBg ? (
+                                                    <>
+                                                        <img src={fusionBg} className="w-full h-full object-cover rounded opacity-60" />
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setFusionBg(null); }}
+                                                            className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-600 text-white rounded-full p-1 transition-colors z-10"
+                                                            title="删除背景"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <div className="text-slate-500 group-hover:text-slate-300 flex flex-col items-center transition-colors"><Image size={20} className="mb-1"/><span className="text-xs font-bold">背景图</span></div>
+                                                )}
                                                 <input type="file" ref={fileInputBgRef} className="hidden" accept="image/*" onChange={handleBgUpload}/>
                                             </div>
                                             <div onClick={() => fileInputItemRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer h-24 transition-all group ${fusionItems.length >= 5 ? 'opacity-50 cursor-not-allowed' : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}>
@@ -415,13 +428,40 @@
                                             </div>
                                         </div>
 
+                                        {/* Items List with Delete Buttons */}
+                                        {fusionItems.length > 0 && (
+                                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                                {fusionItems.map((item, idx) => (
+                                                    <div key={item.id} onClick={() => setSelectedItemId(item.id)} className={`w-16 h-16 flex-shrink-0 rounded-lg border relative overflow-visible cursor-pointer transition-all group ${selectedItemId === item.id ? 'border-purple-500 ring-2 ring-purple-500/30' : 'border-slate-700'}`}>
+                                                        <div className="w-full h-full overflow-hidden rounded-lg">
+                                                            <img src={item.src} className="w-full h-full object-cover"/>
+                                                        </div>
+                                                        <div className="absolute top-0 left-0 bg-black/60 text-[8px] px-1 rounded-br text-white">{idx + 1}</div>
+                                                        
+                                                        {/* Delete Item Button */}
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
+                                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-md hover:bg-red-600 transition-colors z-20"
+                                                            title="删除物品"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
                                         {/* Settings */}
                                         <div className="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50">
                                             <div className="flex justify-between mb-2">
-                                                <label className="text-xs text-slate-400 font-bold flex items-center gap-1.5"><Sliders size={12}/> AI 融合度</label>
+                                                <label className="text-xs text-slate-400 font-bold flex items-center gap-1.5"><Sliders size={12}/> AI 融合程度</label>
                                                 <span className="text-xs text-purple-400 font-mono">{fusionStrength}</span>
                                             </div>
-                                            <input type="range" min="0.1" max="0.9" step="0.05" value={fusionStrength} onChange={e => setFusionStrength(e.target.value)} className="w-full"/>
+                                            <input type="range" min="0.1" max="0.9" step="0.05" value={fusionStrength} onChange={e => setFusionStrength(e.target.value)} className="w-full mb-1"/>
+                                            <div className="flex justify-between text-[10px] text-slate-500 font-medium px-1">
+                                                <span>保留细节</span>
+                                                <span>深度重绘</span>
+                                            </div>
                                         </div>
                                         <textarea value={fusionPrompt} onChange={e => setFusionPrompt(e.target.value)} className="input-dark w-full h-20 rounded-xl p-3 text-xs resize-none" placeholder="融合提示词 (可选)..."/>
                                     </div>
@@ -472,7 +512,7 @@
                                 {mode === 'fusion' && !resultImage && (
                                     <div className="w-full max-w-full flex flex-col items-center">
                                         <div className="text-xs text-slate-500 mb-4 bg-slate-900/80 px-3 py-1.5 rounded-full border border-slate-800 backdrop-blur font-medium flex items-center gap-2">
-                                            <Grip size={12}/> {fusionBg ? "拖拽调整位置 · 右下角手柄缩放" : "请先上传背景"}
+                                            <Grip size={12}/> {fusionBg ? "拖拽物品调整位置 · 右下角手柄缩放" : "请先上传背景"}
                                         </div>
                                         <div ref={compositionRef} className="relative bg-slate-900/50 border-2 border-dashed border-slate-800 rounded shadow-2xl transition-all duration-300 overflow-hidden" style={{ aspectRatio: sizeMode === 'custom' ? `${customW}/${customH}` : presetSize.replace('x', '/'), width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '65vh' }}>
                                             {fusionBg ? <img src={fusionBg} className="w-full h-full object-cover pointer-events-none select-none" /> : <div className="w-full h-full flex flex-col items-center justify-center text-slate-700 min-w-[300px] min-h-[400px]"><Image size={48} className="opacity-20"/></div>}
