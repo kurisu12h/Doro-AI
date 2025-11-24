@@ -79,7 +79,7 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Image, Settings, Sparkles, Download, AlertCircle, Loader2, Key, Palette, Trash2, ExternalLink, Wand2, RefreshCw, LayoutTemplate, Camera, ListFilter, Upload, X, ScanFace, Info, ShieldAlert, LogOut, CheckCircle2, FlaskConical, Gift, Heart, Bot } from 'lucide-react';
+        import { Image, Settings, Sparkles, Download, AlertCircle, Loader2, Key, Palette, Trash2, ExternalLink, Wand2, RefreshCw, LayoutTemplate, Camera, ListFilter, Upload, X, ScanFace, Info, ShieldAlert, LogOut, CheckCircle2, FlaskConical, Gift, Heart, Bot, ArrowRight, PenTool, ImageIcon, Plus, Sliders } from 'lucide-react';
 
         const App = () => {
             // --- 状态管理 ---
@@ -150,6 +150,7 @@
                 }
             };
 
+            // 图片上传处理
             const handleImageUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -158,7 +159,9 @@
                     return;
                 }
                 const reader = new FileReader();
-                reader.onloadend = () => setInitImage(reader.result);
+                reader.onloadend = () => {
+                    setInitImage(reader.result);
+                };
                 reader.readAsDataURL(file);
             };
 
@@ -167,102 +170,201 @@
                 if (fileInputRef.current) fileInputRef.current.value = '';
             };
 
+            // 获取并筛选模型列表
             const fetchModels = async () => {
-                if (!apiKey) { setError('请先配置生图 API Key'); setShowSettingsModal(true); return; }
-                setLoadingModels(true); setError('');
+                if (!apiKey) {
+                    setError('请先配置生图 API Key');
+                    setShowSettingsModal(true);
+                    return;
+                }
+                setLoadingModels(true);
+                setError('');
                 try {
                     const cleanBaseUrl = baseUrl.replace(/\/$/, '');
                     const endpoint = cleanBaseUrl.endsWith('/v1') ? `${cleanBaseUrl}/models` : `${cleanBaseUrl}/v1/models`;
-                    const response = await fetch(endpoint, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+
+                    const response = await fetch(endpoint, {
+                        headers: { 'Authorization': `Bearer ${apiKey}` }
+                    });
+                    
                     const data = await response.json();
+                    
                     if (!response.ok) throw new Error(data.error?.message || '获取模型列表失败');
+
                     const allModels = data.data || [];
                     const filtered = allModels.filter(m => {
                         const id = m.id.toLowerCase();
                         return id.includes('nano') && id.includes('banana');
                     });
-                    if (filtered.length === 0) throw new Error('未找到包含 "nano banana" 的模型');
+
+                    if (filtered.length === 0) {
+                        throw new Error('未找到包含 "nano banana" 的模型，请检查 API 源或手动输入。');
+                    }
+
                     setAvailableModels(filtered);
                     setModel(filtered[0].id); 
+
                 } catch (err) {
                     console.error('模型获取失败:', err);
                     setError(`模型获取失败: ${err.message}`);
-                } finally { setLoadingModels(false); }
+                } finally {
+                    setLoadingModels(false);
+                }
             };
 
+            // Deepseek 调用
             const callDeepseekApi = async (userPrompt, mode) => {
-                if (!deepseekApiKey) { setError('请先在设置中配置 Deepseek API Key'); setShowSettingsModal(true); return; }
-                setIsDeepseekLoading(true); setError('');
+                if (!deepseekApiKey) {
+                    setError('请先在设置中配置 Deepseek API Key 以使用灵感功能');
+                    setShowSettingsModal(true);
+                    return;
+                }
+                setIsDeepseekLoading(true);
+                setError('');
                 try {
-                    let systemPrompt = mode === 'inspiration' ? "你是一个富有创意的AI艺术提示词生成专家。" : "你是一个专业的AI艺术提示词优化专家。";
-                    let userContent = mode === 'inspiration' ? `请为我提供一个关于“${userPrompt}”的AI生图提示词。` : `请润色以下提示词：\n\n${userPrompt}`;
+                    let systemPrompt = "";
+                    let userContent = "";
+
+                    if (mode === 'inspiration') {
+                        systemPrompt = "你是一个富有创意的AI艺术提示词生成专家。";
+                        userContent = `请为我提供一个关于“${userPrompt}”的AI生图提示词。`;
+                    } else if (mode === 'rewrite') {
+                        systemPrompt = "你是一个专业的AI艺术提示词优化专家。";
+                        userContent = `请润色以下提示词：\n\n${userPrompt}`;
+                    }
 
                     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${deepseekApiKey}` },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${deepseekApiKey}`
+                        },
                         body: JSON.stringify({
                             model: "deepseek-chat",
-                            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userContent }],
+                            messages: [
+                                { role: "system", content: systemPrompt },
+                                { role: "user", content: userContent }
+                            ],
                             temperature: 0.7
                         })
                     });
+
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error?.message || 'Deepseek API 请求失败');
+                    
                     const generatedPrompt = data.choices[0]?.message?.content?.trim();
                     if (generatedPrompt) {
                         setPrompt(generatedPrompt);
-                        if (mode === 'inspiration') setInspirationInput('');
+                        if (mode === 'inspiration') {
+                             setInspirationInput('');
+                        }
                     }
-                } catch (err) { setError(`Deepseek Error: ${err.message}`); } finally { setIsDeepseekLoading(false); }
+
+                } catch (err) {
+                    setError(`Deepseek Error: ${err.message}`);
+                } finally {
+                    setIsDeepseekLoading(false);
+                }
             };
 
+            // 生图
             const generateImage = async () => {
-                if (!apiKey) { setError('请先在设置中配置 API Key'); setShowSettingsModal(true); return; }
+                if (!apiKey) {
+                    setError('请先在设置中配置 API Key');
+                    setShowSettingsModal(true);
+                    return;
+                }
                 if (!prompt) return setError('请输入画面描述 (Prompt)');
-                setLoading(true); setError(''); setResultImage(null);
+
+                setLoading(true);
+                setError('');
+                setResultImage(null);
 
                 try {
                     const cleanBaseUrl = baseUrl.replace(/\/$/, '');
-                    const endpoint = cleanBaseUrl.endsWith('/v1') ? `${cleanBaseUrl}/images/generations` : `${cleanBaseUrl}/v1/images/generations`;
+                    const isV1Included = cleanBaseUrl.endsWith('/v1');
+                    const endpoint = isV1Included 
+                        ? `${cleanBaseUrl}/images/generations` 
+                        : `${cleanBaseUrl}/v1/images/generations`;
 
-                    const payload = { model: model, prompt: prompt, n: 1, size: size };
+                    const payload = {
+                        model: model,
+                        prompt: prompt,
+                        n: 1,
+                        size: size,
+                    };
+
                     if (initImage) {
                         const base64Data = initImage.split(',')[1];
                         payload.image = base64Data;
                         payload.strength = parseFloat(strength);
+                        console.log("正在使用图生图模式...");
                     }
 
                     const response = await fetch(endpoint, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
                         body: JSON.stringify(payload)
                     });
+
                     const data = await response.json();
-                    if (!response.ok) throw new Error(data.error?.message || '服务端报错');
-                    if (data.data && data.data.length > 0) setResultImage(data.data[0].url);
-                    else throw new Error('API 返回成功但没有图片数据');
-                } catch (err) { setError(err.message); } finally { setLoading(false); }
+
+                    if (!response.ok) {
+                        const serverMsg = data.error?.message || JSON.stringify(data);
+                        throw new Error(`服务端报错: ${serverMsg}`);
+                    }
+
+                    if (data.data && data.data.length > 0) {
+                        setResultImage(data.data[0].url);
+                    } else {
+                        throw new Error('API 返回成功但没有图片数据');
+                    }
+
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
             };
 
-            const handleDownload = () => { if (resultImage) window.open(resultImage, '_blank'); };
+            // 仅下载图片
+            const handleDownload = () => {
+                if (resultImage) window.open(resultImage, '_blank');
+            };
 
             return (
                 <div className="h-full flex flex-col font-sans text-slate-200">
                 
                 {/* --- Welcome Overlay --- */}
                 {showWelcome && (
-                    <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-xl flex flex-col items-center justify-center p-4 animate-fade-in text-center">
-                        <div className="max-w-lg w-full bg-white/5 border border-white/10 rounded-3xl p-10 shadow-2xl relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500"></div>
+                    <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center p-4 animate-fade-in text-center">
+                        <div className="max-w-2xl w-full bg-white/5 border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500"></div>
                             <div className="flex justify-center mb-6">
-                                <div className="p-5 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl shadow-lg shadow-pink-500/30">
-                                    <Palette size={40} className="text-white" />
+                                <div className="p-4 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl shadow-lg shadow-pink-500/30">
+                                    <Palette size={48} className="text-white" />
                                 </div>
                             </div>
-                            <h1 className="text-3xl font-bold mb-2 tracking-tight text-white">欢迎使用 Doro AI Studio</h1>
-                            <p className="text-gray-400 mb-8 text-sm">Designed by Chenhao Huang</p>
+                            <h1 className="text-4xl font-bold mb-2 tracking-tight">欢迎使用 Doro AI Studio</h1>
+                            <p className="text-gray-400 mb-8">Designed by Chenhao Huang</p>
+                            <div className="space-y-6 text-left mb-8">
+                                <div className="flex gap-4 items-start bg-black/20 p-4 rounded-xl">
+                                    <div className="bg-pink-500/20 p-2 rounded-lg text-pink-400"><Info size={20}/></div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-200 mb-1">如何使用?</h3>
+                                        <p className="text-sm text-gray-400">
+                                            1. 获取 <span className="text-pink-400">API Key</span> (支持柏拉图/Deepseek)。<br/>
+                                            2. 点击右上角 <Settings size={12} className="inline"/> 齿轮图标进行配置。<br/>
+                                            3. 输入提示词，开始创作。
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
                             <button onClick={() => setShowWelcome(false)} className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-pink-500/25 transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2">
-                                开始创作 <CheckCircle2 size={20}/>
+                                我已了解，开始创作 <CheckCircle2 size={20}/>
                             </button>
                         </div>
                     </div>
@@ -290,112 +392,140 @@
                     </div>
                 )}
 
-                {/* --- Settings Modal --- */}
+                {/* --- Settings Modal (Global) --- */}
                 {showSettingsModal && (
                     <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-                        <div className="bg-[#1e293b] border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl animate-scale-in p-6">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-bold flex items-center gap-2 text-white"><Settings size={20} className="text-pink-500"/> 全局设置</h2>
-                                <button onClick={() => setShowSettingsModal(false)} className="text-gray-400 hover:text-white"><X size={20}/></button>
+                        <div className="bg-[#1a1b26] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl animate-scale-in relative overflow-hidden flex flex-col max-h-[90vh]">
+                            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-black/20">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <Settings size={22} className="text-pink-500"/> 全局设置
+                                </h2>
+                                <button onClick={() => setShowSettingsModal(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X size={20} className="text-gray-400"/></button>
                             </div>
-                            <div className="space-y-4">
+                            <div className="p-6 overflow-y-auto no-scrollbar space-y-6">
                                 <div>
-                                    <label className="block text-xs text-gray-400 mb-1 uppercase font-bold">API Base URL</label>
-                                    <input type="text" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} className="input-dark w-full rounded-lg p-3 text-sm" />
+                                    <h3 className="text-sm text-pink-400 font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><Image size={14}/> 生图服务配置</h3>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-xs text-gray-400 mb-1">API Base URL</label>
+                                            <input type="text" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.bltcy.ai/v1" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-pink-500 transition-colors" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-400 mb-1">API Key (与海报版共享)</label>
+                                            <div className="relative">
+                                                <Key size={16} className="absolute left-3 top-3.5 text-gray-500" />
+                                                <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-pink-500 transition-colors" />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
+                                <div className="h-px bg-white/5"></div>
                                 <div>
-                                    <label className="block text-xs text-gray-400 mb-1 uppercase font-bold">API Key</label>
-                                    <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="input-dark w-full rounded-lg p-3 text-sm" />
+                                    <h3 className="text-sm text-purple-400 font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><Wand2 size={14}/> 灵感/Deepseek 配置</h3>
+                                    <div>
+                                        <label className="block text-xs text-gray-400 mb-1">Deepseek API Key</label>
+                                        <div className="relative">
+                                            <Key size={16} className="absolute left-3 top-3.5 text-gray-500" />
+                                            <input type="password" value={deepseekApiKey} onChange={(e) => setDeepseekApiKey(e.target.value)} placeholder="sk-..." className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-purple-500 transition-colors" />
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="pt-2 border-t border-white/10 mt-2">
-                                    <label className="block text-xs text-purple-400 mb-1 uppercase font-bold">Deepseek Key (灵感)</label>
-                                    <input type="password" value={deepseekApiKey} onChange={(e) => setDeepseekApiKey(e.target.value)} className="input-dark w-full rounded-lg p-3 text-sm border-purple-500/30 focus:border-purple-500" />
+                                <div className="h-px bg-white/5"></div>
+                                <div>
+                                    <h3 className="text-sm text-gray-400 font-bold uppercase tracking-wider mb-3 flex items-center gap-2"><ShieldAlert size={14}/> 系统操作</h3>
+                                    <button onClick={handleResetSettings} className="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-sm py-3 rounded-lg transition-colors flex items-center justify-center gap-2"><LogOut size={16}/> 重置所有数据 & 清除 Key</button>
                                 </div>
-                                <div className="flex gap-3 pt-4">
-                                    <button onClick={handleResetSettings} className="flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 py-2.5 rounded-lg text-sm font-bold transition-colors border border-red-500/20">重置</button>
-                                    <button onClick={handleSaveSettings} className="flex-[2] bg-pink-600 hover:bg-pink-500 text-white py-2.5 rounded-lg text-sm font-bold transition-colors shadow-lg shadow-pink-500/20">保存设置</button>
-                                </div>
+                            </div>
+                            <div className="p-6 border-t border-white/10 bg-black/20">
+                                <button onClick={handleSaveSettings} className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 rounded-xl transition-colors shadow-lg shadow-pink-500/20">保存配置并关闭</button>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* Header */}
-                <nav className="border-b border-white/10 bg-black/20 backdrop-blur-md h-16 flex-none z-20">
-                    <div className="w-full h-full px-6 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-gradient-to-tr from-pink-500 to-purple-600 p-1.5 rounded-lg shadow-lg shadow-pink-500/20">
-                                <Palette size={20} className="text-white" />
-                            </div>
-                            <span className="font-bold text-xl tracking-tight text-white">Doro AI <span className="text-pink-400 font-light">Studio</span></span>
+                {/* Navbar */}
+                <nav className="border-b border-white/10 bg-black/20 backdrop-blur-md sticky top-0 z-50">
+                    <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-gradient-to-tr from-pink-500 to-purple-500 p-2 rounded-lg shadow-lg shadow-pink-500/20">
+                            <Palette size={20} className="text-white" />
                         </div>
-                        <div className="flex items-center gap-3">
-                            <a href="doro_chat_gpt.html" target="_blank" className="flex items-center gap-2 px-3 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-sm group">
-                                <Bot size={16} className="text-green-400 group-hover:scale-110 transition-transform"/> <span className="hidden sm:inline">AI Chat</span>
-                            </a>
-                            <a href="doro_prompt_lab.html" target="_blank" className="flex items-center gap-2 px-3 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-sm">
-                                <FlaskConical size={16} className="text-purple-400"/> <span className="hidden sm:inline">灵感</span>
-                            </a>
-                            <a href="doro_poster.html" target="_blank" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-sm font-bold rounded-full transition-all shadow-lg shadow-blue-500/20 hover:scale-105">
-                                <LayoutTemplate size={16} /> <span className="hidden md:inline">海报工坊</span>
-                            </a>
-                            <button onClick={() => setShowSettingsModal(true)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white">
-                                <Settings size={20} />
-                            </button>
-                        </div>
+                        <span className="font-bold text-xl tracking-tight">Doro AI <span className="text-pink-400 font-light">Studio</span></span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        
+                        {/* GPT Chat 入口 */}
+                        <a href="doro_chat_gpt.html" target="_blank" className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-sm group">
+                            <div className="bg-[#19c37d] p-1 rounded-sm group-hover:scale-110 transition-transform"><Bot size={12} className="text-white"/></div>
+                            <span className="hidden sm:inline font-medium">AI Chat</span>
+                        </a>
+
+                        {/* 灵感实验室入口 */}
+                        <a href="doro_prompt_lab.html" target="_blank" className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-sm">
+                            <FlaskConical size={16} className="text-purple-400"/> <span className="hidden sm:inline">灵感</span>
+                        </a>
+
+                        {/* 专业海报版入口 */}
+                        <a href="doro_poster.html" target="_blank" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-sm font-bold rounded-full transition-all shadow-lg shadow-blue-500/20 hover:scale-105">
+                            <LayoutTemplate size={16} /> <span className="hidden md:inline">海报工坊</span>
+                        </a>
+
+                        <button onClick={() => setShowSettingsModal(true)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-all border border-white/10 relative group" title="打开设置">
+                            <Settings size={20} className="group-hover:rotate-90 transition-transform duration-500 text-gray-200" />
+                            {(!apiKey) && <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full animate-pulse border-2 border-slate-900"></span>}
+                        </button>
+                    </div>
                     </div>
                 </nav>
 
-                {/* Main Layout (Responsive Split) */}
-                <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-                    
-                    {/* Left Sidebar: Controls */}
-                    <div className="w-full lg:w-[400px] bg-black/20 border-b lg:border-b-0 lg:border-r border-white/5 backdrop-blur-sm flex flex-col z-10 shrink-0 h-[45vh] lg:h-full shadow-2xl">
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+                <main className="max-w-6xl mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8 h-full overflow-hidden">
+                    {/* Left Panel: Controls */}
+                    <div className="w-full lg:w-1/3 flex flex-col gap-6 animate-fade-in-up h-full overflow-y-auto no-scrollbar pb-20">
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm shadow-xl flex-1 flex flex-col gap-6">
                             
-                            {/* Section 1: Model & Size */}
-                            <div className="bg-white/5 rounded-xl p-4 border border-white/5 space-y-4">
+                            {/* Model & Size Selection */}
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <div className="flex justify-between items-center mb-2">
-                                        <label className="text-xs text-gray-400 uppercase font-bold">模型</label>
-                                        <button onClick={fetchModels} disabled={loadingModels} className="text-[10px] flex items-center gap-1 text-pink-400 hover:text-pink-300 transition-colors">
-                                            {loadingModels ? <Loader2 size={10} className="animate-spin"/> : <ListFilter size={10}/>} 刷新列表
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="block text-xs text-gray-400 uppercase tracking-wider">模型 (Model)</label>
+                                        <button onClick={fetchModels} disabled={loadingModels} className="text-[10px] text-pink-400 hover:text-pink-300 flex items-center gap-1">
+                                            {loadingModels ? <Loader2 size={10} className="animate-spin"/> : <ListFilter size={10}/>} 筛选
                                         </button>
                                     </div>
                                     {availableModels.length > 0 ? (
-                                        <select value={model} onChange={(e) => setModel(e.target.value)} className="input-dark w-full rounded-lg px-3 py-2.5 text-sm outline-none cursor-pointer">
+                                        <select value={model} onChange={(e) => setModel(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-pink-500 transition-colors text-white">
                                             {availableModels.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
                                         </select>
                                     ) : (
-                                        <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="input-dark w-full rounded-lg p-2.5 text-sm" placeholder="nano-banana"/>
+                                        <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-pink-500 transition-colors" placeholder="nano-banana"/>
                                     )}
                                 </div>
                                 <div>
-                                    <label className="text-xs text-gray-400 uppercase font-bold mb-2 block">尺寸</label>
-                                    <select value={size} onChange={(e) => setSize(e.target.value)} className="input-dark w-full rounded-lg px-3 py-2.5 text-sm outline-none cursor-pointer">
-                                        <option value="1024x1024">1:1 方形 (1024x1024)</option>
-                                        <option value="512x512">1:1 快速 (512x512)</option>
-                                        <option value="768x1024">3:4 纵向 (768x1024)</option>
-                                        <option value="576x1024">9:16 手机 (576x1024)</option>
-                                        <option value="1024x768">4:3 横向 (1024x768)</option>
-                                        <option value="1024x576">16:9 电脑 (1024x576)</option>
+                                    <label className="block text-xs text-gray-400 mb-1 uppercase tracking-wider">尺寸 (Size)</label>
+                                    <select value={size} onChange={(e) => setSize(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-pink-500 transition-colors text-white">
+                                        <option value="1024x1024">1:1 方形</option>
+                                        <option value="512x512">1:1 快速</option>
+                                        <option value="768x1024">3:4 纵向</option>
+                                        <option value="576x1024">9:16 手机</option>
+                                        <option value="1024x768">4:3 横向</option>
+                                        <option value="1024x576">16:9 电脑</option>
                                     </select>
                                 </div>
                             </div>
 
-                            {/* Section 2: Img2Img */}
-                            <div className="bg-white/5 rounded-xl p-4 border border-white/5 space-y-3">
-                                <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-2">
-                                    <ScanFace size={14} className="text-green-400"/> 图生图 (可选)
+                            {/* Image to Image */}
+                            <div className="space-y-2">
+                                <label className="block text-xs text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                                    <ScanFace size={14} className="text-green-400"/> 图生图 / 参考图 (可选)
                                 </label>
                                 {!initImage ? (
-                                    <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-white/10 rounded-lg h-20 flex flex-col items-center justify-center text-gray-500 hover:border-pink-500/50 hover:bg-white/5 transition-all cursor-pointer">
-                                        <Upload size={20} className="mb-1"/>
-                                        <span className="text-xs">点击上传参考图</span>
+                                    <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-white/10 rounded-lg p-4 flex flex-col items-center justify-center text-gray-500 hover:border-pink-500/50 hover:bg-white/5 transition-all cursor-pointer h-24">
+                                        <Upload size={24} className="mb-2" />
+                                        <span className="text-xs">点击上传参考图片</span>
                                         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload}/>
                                     </div>
                                 ) : (
-                                    <div className="relative rounded-lg overflow-hidden border border-white/20 group h-32">
+                                    <div className="relative rounded-lg overflow-hidden border border-white/20 group h-36">
                                         <img src={initImage} alt="Init" className="w-full h-full object-cover opacity-60" />
                                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 px-4">
                                             <div className="w-full flex justify-between text-[10px] text-white mb-1"><span>重绘幅度</span><span>{strength}</span></div>
@@ -406,7 +536,7 @@
                                 )}
                             </div>
 
-                            {/* Section 3: Prompt */}
+                            {/* Prompt & Inspiration */}
                             <div className="bg-white/5 rounded-xl p-4 border border-white/5 space-y-3 flex-1 flex flex-col">
                                 <div className="flex gap-2">
                                     <input type="text" value={inspirationInput} onChange={(e) => setInspirationInput(e.target.value)} placeholder="灵感关键词..." className="input-dark flex-1 rounded-lg p-2 text-xs" onKeyDown={(e) => e.key === 'Enter' && inspirationInput && callDeepseekApi(inspirationInput, 'inspiration')}/>
@@ -415,9 +545,9 @@
                                     </button>
                                 </div>
                                 <div className="relative flex-1">
-                                    <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="在此输入详细的提示词..." className="input-dark w-full h-full min-h-[120px] rounded-lg p-3 text-sm resize-none leading-relaxed"/>
+                                    <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="在此输入详细的提示词，或去灵感实验室拼接..." className="input-dark w-full h-full min-h-[120px] rounded-lg p-3 text-sm focus:outline-none focus:border-pink-500 transition-colors resize-none placeholder-gray-600"/>
                                     {prompt && (
-                                        <button onClick={() => callDeepseekApi(prompt, 'rewrite')} disabled={isDeepseekLoading} className="absolute bottom-2 right-2 text-[10px] bg-black/60 hover:bg-pink-600/80 px-2 py-1 rounded text-gray-300 transition-colors backdrop-blur-md flex items-center gap-1">
+                                        <button onClick={() => callDeepseekApi(prompt, 'rewrite')} disabled={isDeepseekLoading} className="absolute bottom-2 right-2 text-xs bg-black/60 hover:bg-pink-600/80 px-2 py-1 rounded text-gray-300 transition-colors backdrop-blur-md flex items-center gap-1">
                                             <RefreshCw size={10} className={isDeepseekLoading ? "animate-spin" : ""} /> 润色
                                         </button>
                                     )}
@@ -428,65 +558,103 @@
 
                         {/* Generate Button */}
                         <div className="p-6 border-t border-white/10 bg-black/20">
-                            <button onClick={generateImage} disabled={loading} className={`w-full py-3.5 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-all transform hover:scale-[1.01] active:scale-[0.99] ${loading ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 shadow-pink-500/25'}`}>
+                            <button onClick={generateImage} disabled={loading} className={`w-full py-3.5 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-all transform hover:scale-[1.01] active:scale-[0.99] ${loading ? 'bg-gray-600 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 shadow-pink-500/25'}`}>
                                 {loading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
                                 {loading ? '正在绘制...' : '立即生成'}
                             </button>
                         </div>
                     </div>
 
-                    {/* Right Panel: Canvas Area */}
-                    <div className="flex-1 bg-[#0f172a] relative flex flex-col overflow-hidden">
-                        <div className="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none"></div>
-                        
-                        <div className="flex-1 w-full h-full flex items-center justify-center p-6 lg:p-10 overflow-hidden relative">
-                            
-                            {/* Result Image */}
-                            {resultImage ? (
-                                <div className="relative animate-fade-in flex flex-col items-center gap-6 max-h-full max-w-full">
-                                    <div className="relative rounded-xl shadow-2xl shadow-black/60 overflow-hidden border border-white/10 group bg-black" style={{maxHeight: 'calc(100vh - 180px)', maxWidth: '100%'}}>
-                                        <img src={resultImage} alt="Generated Art" className="max-w-full max-h-full object-contain block" crossOrigin="anonymous"/>
-                                    </div>
-                                    <div className="flex gap-3 z-20">
-                                        <button onClick={handleDownload} className="bg-white text-slate-900 px-6 py-2.5 rounded-full flex items-center gap-2 font-bold text-sm hover:bg-gray-200 transition-all shadow-lg">
-                                            <Download size={18}/> 下载
-                                        </button>
-                                        <button onClick={() => setResultImage(null)} className="p-2.5 border border-white/20 rounded-full hover:bg-white/10 text-white transition-colors" title="清除">
-                                            <Trash2 size={18} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : loading ? (
-                                <div className="flex flex-col items-center gap-6">
-                                    <div className="relative">
-                                        <div className="w-20 h-20 border-4 border-white/10 border-t-pink-500 rounded-full animate-spin"></div>
-                                        <div className="absolute inset-0 flex items-center justify-center"><Sparkles size={24} className="text-pink-500 animate-pulse"/></div>
-                                    </div>
-                                    <p className="text-pink-200/80 animate-pulse font-medium tracking-widest text-sm">AI GENERATING...</p>
-                                </div>
-                            ) : (
-                                // Empty State
-                                <div className="text-center p-10 max-w-md animate-fade-in">
-                                    <div className="w-24 h-24 bg-gradient-to-tr from-pink-500/20 to-purple-600/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/5">
-                                        <Image size={40} className="text-pink-300/50" />
-                                    </div>
-                                    <h3 className="text-2xl font-bold text-white/90 mb-3">准备好创作了吗？</h3>
-                                    <p className="text-gray-400 text-sm leading-relaxed">
-                                        在左侧配置你的创意参数。<br/>Doro AI 将为你呈现想象中的画面。
-                                    </p>
-                                </div>
-                            )}
+                    {/* Right Panel: Display / Canvas */}
+                    <div className="w-full lg:w-2/3 min-h-[600px] flex items-center justify-center relative">
+                        <div className="absolute inset-0 bg-black/20 border border-white/10 rounded-2xl backdrop-blur-md -z-10 overflow-hidden">
+                             <div className="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none"></div>
                         </div>
+
+                        {!resultImage && !loading && !error && (
+                            <div className="text-center p-8 animate-fade-in">
+                                <div className="w-24 h-24 bg-gradient-to-tr from-pink-500/10 to-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/5 shadow-inner">
+                                    <Image size={40} className="text-pink-300/50" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-white/80 mb-2">准备好创作了吗？</h3>
+                                <p className="text-gray-400 max-w-sm mx-auto leading-relaxed">
+                                    Doro AI 将为你呈现想象中的画面。支持自动筛选 Nano Banana 模型。
+                                </p>
+                            </div>
+                        )}
+
+                        {loading && (
+                            <div className="flex flex-col items-center gap-6">
+                                <div className="relative">
+                                    <div className="absolute inset-0 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 blur-xl opacity-50 animate-pulse"></div>
+                                    <div className="w-20 h-20 border-4 border-white/10 border-t-pink-500 border-r-purple-500 rounded-full animate-spin relative z-10"></div>
+                                </div>
+                                <p className="text-pink-200/80 animate-pulse text-base font-medium tracking-wider">AI 正在绘制中...</p>
+                            </div>
+                        )}
+
+                        {error && (
+                            <div className="bg-red-950/40 border border-red-500/30 p-8 rounded-2xl text-center max-w-md mx-4 animate-fade-in-up">
+                                <AlertCircle size={40} className="text-red-400 mx-auto mb-4" />
+                                <h3 className="text-xl text-red-300 font-bold mb-3">出错啦</h3>
+                                <div className="text-red-200/70 text-sm font-mono bg-black/30 p-4 rounded-lg text-left overflow-auto max-h-40">{error}</div>
+                            </div>
+                        )}
+
+                        {resultImage && !loading && (
+                            <div className="relative animate-fade-in flex flex-col items-center gap-4 w-full h-full justify-center p-6">
+                                <div className="relative rounded-lg shadow-2xl shadow-black/50 overflow-hidden" style={{maxWidth: '100%', maxHeight: '100%'}}>
+                                    <img src={resultImage} alt="Generated Art" className="max-w-full max-h-full object-contain block rounded-lg" crossOrigin="anonymous" style={{maxHeight: 'calc(100vh - 180px)'}}/>
+                                </div>
+                                <div className="flex gap-4">
+                                    <button onClick={handleDownload} className="bg-white/10 hover:bg-pink-600 backdrop-blur-md text-white px-6 py-2 rounded-full flex items-center gap-2 border border-white/10 transition-all hover:scale-105 font-bold text-sm">
+                                        <Download size={18}/> 下载原图
+                                    </button>
+                                    <button onClick={() => setResultImage(null)} className="bg-white/10 hover:bg-red-600/80 backdrop-blur-md text-white p-2 rounded-full border border-white/10 transition-all hover:scale-105" title="清除">
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </main>
-
-                {/* Footer */}
-                <footer className="flex-none text-center py-4 text-gray-500 text-xs border-t border-white/5 bg-black/20 z-20">
-                    <div className="flex items-center justify-center gap-2">
+                
+                {/* Footer with Secret Gift */}
+                <footer className="flex-none text-center py-4 text-gray-500 text-xs border-t border-white/5 bg-black/20 z-20 relative">
+                    {/* Mobile Footer */}
+                    <div className="lg:hidden flex items-center justify-center gap-2">
                         <p>© 2025 Doro AI Studio • Designed by Chenhao Huang</p>
                         <button onClick={() => setShowSurprise(true)} className="text-gray-600 hover:text-pink-500 transition-colors duration-500"><Gift size={12} /></button>
                     </div>
+                    {/* Desktop Footer (Bottom Left of Sidebar) */}
+                    <div className="hidden lg:flex absolute bottom-4 left-6 z-30 text-[10px] text-gray-500 gap-2 items-center">
+                         <p className="opacity-60 hover:opacity-100 transition-opacity cursor-default">Designed by Chenhao Huang</p>
+                         <button onClick={() => setShowSurprise(true)} className="hover:text-pink-500 transition-colors duration-500"><Gift size={12} /></button>
+                    </div>
                 </footer>
+
+                {/* Surprise Modal */}
+                {showSurprise && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowSurprise(false)}>
+                        <div className="relative bg-gradient-to-br from-pink-500/90 to-rose-600/90 p-8 rounded-3xl shadow-2xl text-center max-w-sm mx-4 transform scale-100 animate-scale-in border border-white/20" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => setShowSurprise(false)} className="absolute top-3 right-3 text-white/80 hover:text-white"><X size={20}/></button>
+                            <div className="mb-6 flex justify-center">
+                                <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md shadow-inner">
+                                    <Heart size={48} className="text-white fill-current animate-heartbeat filter drop-shadow-lg" />
+                                </div>
+                            </div>
+                            <h3 className="text-2xl font-bold text-white mb-4 tracking-wide drop-shadow-md">Special Gift</h3>
+                            <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm border border-white/10">
+                                <p className="text-white/95 text-lg font-medium leading-relaxed tracking-wide">
+                                    这是 <span className="font-bold text-yellow-200 mx-1 text-xl">Chenhao Huang</span> <br/>
+                                    送给 <span className="font-bold text-yellow-200 mx-1 text-xl">Feifan Qiu</span> <br/>
+                                    的礼物 🎁
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 </div>
             );
         };
