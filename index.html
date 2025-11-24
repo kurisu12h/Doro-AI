@@ -23,38 +23,71 @@
     </script>
 
     <style>
-        @keyframes fade-in-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
-        
-        @keyframes scale-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-        .animate-scale-in { animation: scale-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-
-        /* 心跳动画 */
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up {
+            animation: fade-in-up 0.6s ease-out forwards;
+        }
+        .animate-fade-in {
+            animation: fade-in-up 0.4s ease-out forwards;
+        }
+        @keyframes scale-in {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-scale-in {
+            animation: scale-in 0.2s ease-out forwards;
+        }
         @keyframes heartbeat {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.15); }
         }
         .animate-heartbeat { animation: heartbeat 1s infinite ease-in-out; }
 
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow-x: hidden; }
-        
-        /* 移动端优化滚动条 */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        input[type=range] { -webkit-appearance: none; background: transparent; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #ec4899; cursor: pointer; margin-top: -6px; }
-        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #4b5563; border-radius: 2px; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
+        }
+        /* 滑块样式 */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #ec4899;
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #4b5563;
+            border-radius: 2px;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
     </style>
 </head>
-<body class="bg-slate-900 text-white h-screen flex flex-col">
-    <div id="root" class="h-full flex flex-col"></div>
+<body class="bg-slate-900 overflow-x-hidden text-white">
+    <div id="root"></div>
 
     <!-- React 代码逻辑 -->
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Image, Settings, Sparkles, Download, AlertCircle, Loader2, Key, Palette, Trash2, ExternalLink, Wand2, RefreshCw, LayoutTemplate, Camera, ListFilter, Upload, X, ScanFace, Info, ShieldAlert, LogOut, CheckCircle2, FlaskConical, Gift, Heart } from 'lucide-react';
+        import { Image, Settings, Sparkles, Download, AlertCircle, Loader2, Key, Palette, Trash2, ExternalLink, Wand2, RefreshCw, LayoutTemplate, Camera, ListFilter, Upload, X, ScanFace, Info, ShieldAlert, LogOut, CheckCircle2, FlaskConical, Gift, Heart, Bot } from 'lucide-react';
 
         const App = () => {
             // --- 状态管理 ---
@@ -62,7 +95,7 @@
             const [showSettingsModal, setShowSettingsModal] = useState(false);
             const [showSurprise, setShowSurprise] = useState(false); // 彩蛋状态
 
-            // API 配置
+            // API 配置 (与海报页共享 localStorage key)
             const [apiKey, setApiKey] = useState('');
             const [baseUrl, setBaseUrl] = useState('https://api.bltcy.ai/v1');
             const [deepseekApiKey, setDeepseekApiKey] = useState('');
@@ -102,8 +135,8 @@
                 const incomingPrompt = localStorage.getItem('doro_active_prompt');
                 if (incomingPrompt) {
                     setPrompt(incomingPrompt);
-                    setShowWelcome(false); 
-                    localStorage.removeItem('doro_active_prompt');
+                    setShowWelcome(false); // 如果是从实验室来的，直接跳过欢迎页
+                    localStorage.removeItem('doro_active_prompt'); // 清除，防止刷新一直覆盖
                 }
             }, []);
 
@@ -315,22 +348,19 @@
             };
 
             return (
-                <div className="min-h-screen h-screen flex flex-col bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 text-white font-sans selection:bg-pink-500 selection:text-white overflow-hidden">
+                <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 text-white font-sans selection:bg-pink-500 selection:text-white pb-10">
                 
                 {/* --- Love Surprise Modal --- */}
                 {showSurprise && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowSurprise(false)}>
                         <div className="relative bg-gradient-to-br from-pink-500/90 to-rose-600/90 p-8 rounded-3xl shadow-2xl text-center max-w-sm mx-4 transform scale-100 animate-scale-in border border-white/20" onClick={e => e.stopPropagation()}>
                             <button onClick={() => setShowSurprise(false)} className="absolute top-3 right-3 text-white/80 hover:text-white"><X size={20}/></button>
-                            
                             <div className="mb-6 flex justify-center">
                                 <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md shadow-inner">
                                     <Heart size={48} className="text-white fill-current animate-heartbeat filter drop-shadow-lg" />
                                 </div>
                             </div>
-                            
                             <h3 className="text-2xl font-bold text-white mb-4 tracking-wide drop-shadow-md">Special Gift</h3>
-                            
                             <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm border border-white/10">
                                 <p className="text-white/95 text-lg font-medium leading-relaxed tracking-wide">
                                     这是 <span className="font-bold text-yellow-200 mx-1 text-xl">Chenhao Huang</span> <br/>
@@ -338,11 +368,8 @@
                                     的礼物 🎁
                                 </p>
                             </div>
-                            
                             <p className="mt-6 text-white/70 text-xs font-medium tracking-widest uppercase flex items-center justify-center gap-2">
-                                <span className="w-4 h-[1px] bg-white/50"></span>
-                                Made with Love
-                                <span className="w-4 h-[1px] bg-white/50"></span>
+                                <span className="w-4 h-[1px] bg-white/50"></span>Made with Love<span className="w-4 h-[1px] bg-white/50"></span>
                             </p>
                         </div>
                     </div>
@@ -368,7 +395,7 @@
                                         <p className="text-sm text-gray-400">
                                             1. 获取 <span className="text-pink-400">API Key</span> (支持柏拉图/Deepseek)。<br/>
                                             2. 点击右上角 <Settings size={12} className="inline"/> 齿轮图标进行配置。<br/>
-                                            3. 想要制作海报？点击右上角“专业海报版”。
+                                            3. 想要制作海报？点击右上角“海报工坊”。
                                         </p>
                                     </div>
                                 </div>
@@ -432,38 +459,44 @@
                 )}
 
                 {/* Navbar */}
-                <nav className="border-b border-white/10 bg-black/20 backdrop-blur-md sticky top-0 z-50 h-16 flex-none">
-                    <div className="max-w-[1920px] mx-auto px-4 lg:px-8 h-full flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <div className="bg-gradient-to-tr from-pink-500 to-purple-500 p-2 rounded-lg shadow-lg shadow-pink-500/20">
-                                <Palette size={20} className="text-white" />
-                            </div>
-                            <span className="font-bold text-xl tracking-tight">Doro AI <span className="text-pink-400 font-light">Studio</span></span>
+                <nav className="border-b border-white/10 bg-black/20 backdrop-blur-md sticky top-0 z-50">
+                    <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-gradient-to-tr from-pink-500 to-purple-600 p-2 rounded-lg shadow-lg shadow-pink-500/30">
+                            <Palette size={48} className="text-white" />
                         </div>
-                        <div className="flex items-center gap-3">
-                            
-                            {/* 灵感实验室入口 */}
-                            <a href="doro_prompt_lab.html" target="_blank" className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-sm">
-                                <FlaskConical size={16} className="text-purple-400"/> <span className="hidden sm:inline">灵感实验室</span>
-                            </a>
+                        <span className="font-bold text-xl tracking-tight">Doro AI <span className="text-pink-400 font-light">Studio</span></span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        
+                        {/* GPT Chat 入口 */}
+                        <a href="doro_chat_gpt.html" target="_blank" className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-sm group">
+                            <div className="bg-[#19c37d] p-1 rounded-sm group-hover:scale-110 transition-transform"><Bot size={12} className="text-white"/></div>
+                            <span className="hidden sm:inline font-medium">AI Chat</span>
+                        </a>
 
-                            {/* 专业海报版入口 */}
-                            <a href="doro_poster.html" target="_blank" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-sm font-bold rounded-full transition-all shadow-lg shadow-blue-500/20 hover:scale-105">
-                                <LayoutTemplate size={16} /> <span className="hidden md:inline">海报工坊</span>
-                            </a>
+                        {/* 灵感实验室入口 */}
+                        <a href="doro_prompt_lab.html" target="_blank" className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-sm">
+                            <FlaskConical size={16} className="text-purple-400"/> <span className="hidden sm:inline">灵感实验室</span>
+                        </a>
 
-                            <button onClick={() => setShowSettingsModal(true)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-all border border-white/10 relative group" title="打开设置">
-                                <Settings size={20} className="group-hover:rotate-90 transition-transform duration-500 text-gray-200" />
-                                {(!apiKey) && <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full animate-pulse border-2 border-slate-900"></span>}
-                            </button>
-                        </div>
+                        {/* 专业海报版入口 */}
+                        <a href="doro_poster.html" target="_blank" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-sm font-bold rounded-full transition-all shadow-lg shadow-blue-500/20 hover:scale-105">
+                            <LayoutTemplate size={16} /> <span className="hidden md:inline">海报工坊</span>
+                        </a>
+
+                        <button onClick={() => setShowSettingsModal(true)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-all border border-white/10 relative group" title="打开设置">
+                            <Settings size={20} className="group-hover:rotate-90 transition-transform duration-500 text-gray-200" />
+                            {(!apiKey) && <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full animate-pulse border-2 border-slate-900"></span>}
+                        </button>
+                    </div>
                     </div>
                 </nav>
 
-                <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                <main className="max-w-6xl mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8">
                     {/* Left Panel: Controls */}
-                    <div className="w-full lg:w-[420px] xl:w-[480px] flex-shrink-0 border-b lg:border-b-0 lg:border-r border-white/10 bg-black/20 backdrop-blur-sm flex flex-col h-[40vh] lg:h-full">
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+                    <div className="w-full lg:w-1/3 flex flex-col gap-6 animate-fade-in-up">
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm shadow-xl flex-1 flex flex-col gap-6">
                             
                             {/* Model & Size Selection */}
                             <div className="grid grid-cols-2 gap-4">
@@ -523,27 +556,25 @@
                             </div>
 
                             {/* Prompt & Inspiration */}
-                            <div className="space-y-2 flex-1 flex flex-col">
+                            <div className="space-y-2">
                                 <div className="bg-black/20 rounded-lg p-3 border border-white/5 flex gap-2">
                                     <input type="text" value={inspirationInput} onChange={(e) => setInspirationInput(e.target.value)} placeholder="灵感主题 (如: 赛博朋克猫)" className="flex-1 bg-transparent text-sm focus:outline-none placeholder-gray-500" onKeyDown={(e) => e.key === 'Enter' && inspirationInput && callDeepseekApi(inspirationInput, 'inspiration')}/>
                                     <button onClick={() => callDeepseekApi(inspirationInput, 'inspiration')} disabled={isDeepseekLoading || !inspirationInput} className="text-purple-400 hover:text-white transition-colors">
                                         <Wand2 size={18} className={isDeepseekLoading ? "animate-spin" : ""} />
                                     </button>
                                 </div>
-                                <div className="relative flex-1">
-                                    <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="在此输入详细的提示词，或去灵感实验室拼接..." className="w-full h-full min-h-[150px] bg-black/40 border border-white/10 rounded-lg p-4 text-sm focus:outline-none focus:border-pink-500 transition-colors resize-none placeholder-gray-600 leading-relaxed"/>
+                                <div className="relative">
+                                    <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="在此输入详细的提示词，或去灵感实验室拼接..." className="w-full min-h-[100px] bg-black/40 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:border-pink-500 transition-colors resize-none placeholder-gray-600"/>
                                     {prompt && (
-                                        <button onClick={() => callDeepseekApi(prompt, 'rewrite')} disabled={isDeepseekLoading} className="absolute bottom-3 right-3 text-xs bg-black/60 hover:bg-pink-600/80 px-2 py-1 rounded text-gray-300 transition-colors backdrop-blur-md flex items-center gap-1">
+                                        <button onClick={() => callDeepseekApi(prompt, 'rewrite')} disabled={isDeepseekLoading} className="absolute bottom-2 right-2 text-xs bg-black/60 hover:bg-pink-600/80 px-2 py-1 rounded text-gray-300 transition-colors backdrop-blur-md flex items-center gap-1">
                                             <RefreshCw size={10} className={isDeepseekLoading ? "animate-spin" : ""} /> 润色
                                         </button>
                                     )}
                                 </div>
                             </div>
-                        </div>
-                        
-                        {/* Generate Button */}
-                        <div className="p-6 border-t border-white/10 bg-black/20">
-                            <button onClick={generateImage} disabled={loading} className={`w-full py-4 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-all transform hover:scale-[1.01] active:scale-[0.99] ${loading ? 'bg-gray-600 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 shadow-pink-500/25'}`}>
+
+                            {/* Generate Button */}
+                            <button onClick={generateImage} disabled={loading} className={`mt-auto w-full py-3 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-all transform hover:scale-[1.01] active:scale-[0.99] ${loading ? 'bg-gray-600 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 shadow-pink-500/25'}`}>
                                 {loading ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
                                 {loading ? '生成中...' : '立即生成'}
                             </button>
@@ -551,74 +582,64 @@
                     </div>
 
                     {/* Right Panel: Display / Canvas */}
-                    <div className="flex-1 bg-black/30 relative flex flex-col overflow-hidden">
-                        <div className="absolute inset-0 bg-black/20 border border-white/10 rounded-2xl backdrop-blur-md -z-10 overflow-hidden m-4 lg:m-6">
+                    <div className="w-full lg:w-2/3 min-h-[600px] flex items-center justify-center relative">
+                        <div className="absolute inset-0 bg-black/20 border border-white/10 rounded-2xl backdrop-blur-md -z-10 overflow-hidden">
                              <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '24px 24px'}}></div>
                         </div>
 
-                        {/* Content Container */}
-                        <div className="flex-1 flex items-center justify-center p-8 lg:p-12 overflow-auto">
-                            {!resultImage && !loading && !error && (
-                                <div className="text-center p-8 animate-fade-in max-w-md">
-                                    <div className="w-24 h-24 bg-gradient-to-tr from-pink-500/10 to-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/5 shadow-inner">
-                                        <Image size={40} className="text-pink-300/50" />
-                                    </div>
-                                    <h3 className="text-2xl font-bold text-white/80 mb-2">准备好创作了吗？</h3>
-                                    <p className="text-gray-400 leading-relaxed">
-                                        Doro AI 将为您呈现想象中的画面。<br/>支持自动筛选 Nano Banana 模型。
-                                    </p>
+                        {!resultImage && !loading && !error && (
+                            <div className="text-center p-8 animate-fade-in">
+                                <div className="w-24 h-24 bg-gradient-to-tr from-pink-500/10 to-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/5 shadow-inner">
+                                    <Image size={40} className="text-pink-300/50" />
                                 </div>
-                            )}
+                                <h3 className="text-2xl font-bold text-white/80 mb-2">准备好创作了吗？</h3>
+                                <p className="text-gray-400 max-w-sm mx-auto leading-relaxed">
+                                    Doro AI 将为你呈现想象中的画面。支持自动筛选 Nano Banana 模型。
+                                </p>
+                            </div>
+                        )}
 
-                            {loading && (
-                                <div className="flex flex-col items-center gap-6">
-                                    <div className="relative">
-                                        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 blur-xl opacity-50 animate-pulse"></div>
-                                        <div className="w-24 h-24 border-4 border-white/10 border-t-pink-500 border-r-purple-500 rounded-full animate-spin relative z-10"></div>
-                                    </div>
-                                    <p className="text-pink-200/80 animate-pulse text-lg font-medium tracking-wider">AI 正在绘制中...</p>
+                        {loading && (
+                            <div className="flex flex-col items-center gap-6">
+                                <div className="relative">
+                                    <div className="absolute inset-0 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 blur-xl opacity-50 animate-pulse"></div>
+                                    <div className="w-20 h-20 border-4 border-white/10 border-t-pink-500 border-r-purple-500 rounded-full animate-spin relative z-10"></div>
                                 </div>
-                            )}
+                                <p className="text-pink-200/80 animate-pulse text-base font-medium tracking-wider">AI 正在绘制中...</p>
+                            </div>
+                        )}
 
-                            {error && (
-                                <div className="bg-red-950/40 border border-red-500/30 p-8 rounded-2xl text-center max-w-md animate-fade-in-up">
-                                    <AlertCircle size={48} className="text-red-400 mx-auto mb-4" />
-                                    <h3 className="text-xl text-red-300 font-bold mb-3">出错啦</h3>
-                                    <div className="text-red-200/70 text-sm font-mono bg-black/30 p-4 rounded-lg text-left overflow-auto max-h-40">{error}</div>
-                                </div>
-                            )}
+                        {error && (
+                            <div className="bg-red-950/40 border border-red-500/30 p-8 rounded-2xl text-center max-w-md mx-4 animate-fade-in-up">
+                                <AlertCircle size={40} className="text-red-400 mx-auto mb-4" />
+                                <h3 className="text-xl text-red-300 font-bold mb-3">出错啦</h3>
+                                <div className="text-red-200/70 text-sm font-mono bg-black/30 p-4 rounded-lg text-left overflow-auto max-h-40">{error}</div>
+                            </div>
+                        )}
 
-                            {resultImage && !loading && (
-                                <div className="relative animate-fade-in flex flex-col items-center gap-6 w-full h-full justify-center">
-                                    <div className="relative rounded-xl shadow-2xl shadow-black/50 overflow-hidden border border-white/10 max-h-full max-w-full flex items-center justify-center">
-                                        <img src={resultImage} alt="Generated Art" className="max-w-full max-h-full object-contain block rounded-lg" crossOrigin="anonymous" style={{maxHeight: 'calc(100vh - 200px)'}}/>
-                                    </div>
-                                    <div className="flex gap-4">
-                                        <button onClick={handleDownload} className="bg-white/10 hover:bg-pink-600 backdrop-blur-md text-white px-8 py-3 rounded-full flex items-center gap-2 border border-white/10 transition-all hover:scale-105 font-medium shadow-lg">
-                                            <Download size={20}/> 下载原图
-                                        </button>
-                                        <button onClick={() => setResultImage(null)} className="bg-white/10 hover:bg-red-600/80 backdrop-blur-md text-white p-3 rounded-full border border-white/10 transition-all hover:scale-105" title="清除">
-                                            <Trash2 size={20} />
-                                        </button>
-                                    </div>
+                        {resultImage && !loading && (
+                            <div className="relative animate-fade-in flex flex-col items-center gap-4">
+                                <div className="relative rounded-lg shadow-2xl shadow-black/50 overflow-hidden" style={{maxWidth: '100%', maxHeight: '70vh'}}>
+                                    <img src={resultImage} alt="Generated Art" className="max-w-full max-h-[70vh] object-contain block rounded-lg" crossOrigin="anonymous"/>
                                 </div>
-                            )}
-                        </div>
+                                <div className="flex gap-4 mt-4">
+                                    <button onClick={handleDownload} className="bg-white/10 hover:bg-pink-600 backdrop-blur-md text-white px-6 py-2 rounded-full flex items-center gap-2 border border-white/10 transition-all hover:scale-105">
+                                        <Download size={18}/> 下载原图
+                                    </button>
+                                    <button onClick={() => setResultImage(null)} className="bg-white/10 hover:bg-red-600/80 backdrop-blur-md text-white p-2 rounded-full border border-white/10 transition-all hover:scale-105" title="清除">
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </main>
                 
                 {/* Footer with Secret Gift */}
-                <footer className="flex-none text-center py-6 text-gray-500 text-xs border-t border-white/5 bg-black/10">
+                <footer className="text-center py-8 text-gray-500 text-sm border-t border-white/5 bg-black/10 mt-auto">
                     <div className="flex items-center justify-center gap-2">
-                        <p>© 2025 Doro AI Studio • Designed by Chenhao Huang</p>
-                        {/* 彩蛋按钮 */}
-                        <button 
-                            onClick={() => setShowSurprise(true)} 
-                            className="text-gray-700 hover:text-pink-500 transition-colors duration-500"
-                            title="A little surprise"
-                        >
-                            <Gift size={12} />
-                        </button>
+                        <p>© 2025 <span className="text-pink-400 font-semibold">Doro AI Studio</span> <span className="text-gray-600">•</span> Designed by <span className="text-gray-300">Chenhao Huang</span></p>
+                        <button onClick={() => setShowSurprise(true)} className="text-gray-700 hover:text-pink-500 transition-colors duration-500" title="Surprise?"><Gift size={12} /></button>
                     </div>
                 </footer>
                 </div>
@@ -629,5 +650,3 @@
     </script>
 </body>
 </html>
-
-
