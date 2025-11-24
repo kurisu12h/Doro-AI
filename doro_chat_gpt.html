@@ -65,7 +65,6 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
         import { createRoot } from 'react-dom/client';
-        /* Added ScanFace to imports */
         import { Settings, Send, Paperclip, Image as ImageIcon, User, Bot, Plus, Menu, X, ChevronDown, Loader2, LogOut, RefreshCw, PanelLeftClose, PanelLeftOpen, Sparkles, Search, Library, Box, Folder, FolderOpen, Mic, Activity, Grip, MessageSquarePlus, UserCircle2, CheckCircle2, LayoutGrid, ArrowRight, Globe, Copy, Trash2, MoreHorizontal, MessageSquare, Key, PenTool, GraduationCap, Zap, Layers, ScanFace } from 'lucide-react';
 
         const App = () => {
@@ -357,6 +356,8 @@
                     reader.onloadend = () => setSelectedFile(reader.result);
                     reader.readAsDataURL(file);
                 }
+                // 修复：重置 input value，允许重复上传同一文件
+                e.target.value = null;
             };
 
             const handleKeyDown = (e) => {
@@ -461,7 +462,7 @@
                             )}
                         </div>
 
-                        {/* 底部输入栏 */}
+                        {/* 底部输入栏 (始终固定在底部) */}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-6 px-4 z-20">
                             <div className="max-w-3xl mx-auto relative w-full">
                                 {isStreaming && (
@@ -479,10 +480,10 @@
                                     </div>
                                 )}
                                 <div className="bg-[#f4f4f4] rounded-[26px] border border-transparent focus-within:bg-white focus-within:border-gray-200 focus-within:shadow-lg transition-all input-shadow flex items-end p-2 gap-2 w-full">
+                                    {/* 核心修复：使用正确的函数名 handleFileSelect */}
                                     <button onClick={() => fileInputRef.current?.click()} className="p-2.5 text-gray-400 hover:text-gray-800 bg-transparent hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"><Plus size={20} /></button>
                                     <textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="发送消息..." className="flex-1 bg-transparent border-none outline-none text-gray-700 text-base py-3 resize-none min-h-[44px] max-h-[200px] placeholder-gray-400" rows={1}/>
                                     
-                                    {/* 功能按钮组 */}
                                     <div className="flex items-center gap-1 pb-1">
                                         {selectedFile && input.trim() && (
                                             <button onClick={() => sendMessage('edit')} className="p-2 rounded-full bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors" title="GPT改图"><PenTool size={18} /></button>
@@ -569,6 +570,9 @@
                             </div>
                         )}
                     </div>
+
+                    {/* 隐藏的文件输入 (必须放在 DOM 中) */}
+                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileSelect} />
                 </div>
             );
         };
