@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ChatGPT 5.1 - Doro UI</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Markdown 解析 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- 代码高亮样式 (浅色) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.292.0"
+        }
+    }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+        
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background-color: #ffffff; 
+            color: #374151;
+            overflow: hidden; 
+        }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+
+        .prose { color: #374151; max-width: none; font-size: 1rem; line-height: 1.75; }
+        .prose pre { background: #f9fafb; border-radius: 8px; padding: 12px; overflow-x: auto; border: 1px solid #e5e7eb; margin-top: 0.5em; margin-bottom: 0.5em; }
+        .prose code { font-family: 'Menlo', 'Monaco', monospace; background: #f3f4f6; padding: 0.2em 0.4em; rounded: 4px; color: #ef4444; font-size: 0.875em; }
+        .prose pre code { background: transparent; padding: 0; color: inherit; }
+        .prose p { margin-bottom: 1em; }
+        
+        .msg-animate { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 更加细腻的输入框阴影 */
+        .input-shadow:focus-within {
+            box-shadow: 0 0 0 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.08);
+            border-color: #d1d5db;
+        }
+    </style>
+</head>
+<body class="h-screen flex text-gray-800">
+    <div id="root" class="h-full w-full flex"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Settings, Send, Paperclip, Image as ImageIcon, User, Bot, Plus, Menu, X, ChevronDown, Loader2, LogOut, RefreshCw, PanelLeftClose, PanelLeftOpen, Sparkles, Search, Library, Box, Folder, FolderOpen, Mic, Activity, Grip, MessageSquarePlus, UserCircle2, CheckCircle2, LayoutGrid, ArrowRight, Globe } from 'lucide-react';
+
+        const App = () => {
+            // --- 状态 ---
+            const [apiKey, setApiKey] = useState('');
+            const [baseUrl, setBaseUrl] = useState('https://api.bltcy.ai/v1');
+            
+            const [sidebarOpen, setSidebarOpen] = useState(true);
+            const [showSettings, setShowSettings] = useState(false);
+            const [showModelMenu, setShowModelMenu] = useState(false);
+            const [hasChatStarted, setHasChatStarted] = useState(false);
+
+            const [messages, setMessages] = useState([]);
+            const [input, setInput] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+            const [selectedFile, setSelectedFile] = useState(null); 
+            
+            const [models, setModels] = useState([]);
+            const [currentModel, setCurrentModel] = useState('gpt-4o');
+            const [loadingModels, setLoadingModels] = useState(false);
+
+            const messagesEndRef = useRef(null);
+            const fileInputRef = useRef(null);
+            const textareaRef = useRef(null);
+
+            // --- 初始化 ---
+            useEffect(() => {
+                const storedKey = localStorage.getItem('plato_api_key');
+                const storedBaseUrl = localStorage.getItem('plato_base_url');
+                if (storedKey) setApiKey(storedKey);
+                if (storedBaseUrl) setBaseUrl(storedBaseUrl);
+                
+                // 移动端默认收起
+                if (window.innerWidth < 1024) setSidebarOpen(false);
+            }, []);
+
+            useEffect(() => {
+                if (hasChatStarted) {
+                    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                }
+            }, [messages, hasChatStarted]);
+
+            // 自动调整输入框高度
+            useEffect(() => {
+                if (textareaRef.current) {
+                    textareaRef.current.style.height = '24px'; // Reset to calculate shrink
+                    const scrollHeight = textareaRef.current.scrollHeight;
+                    textareaRef.current.style.height = `${Math.min(scrollHeight, 200)}px`;
+                }
+            }, [input]);
+
+            // --- API 逻辑 ---
+            const fetchModels = async () => {
+                if (!apiKey) return alert('请先配置 API Key');
+                setLoadingModels(true);
+                try {
+                    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
+                    const endpoint = cleanBaseUrl.endsWith('/v1') ? `${cleanBaseUrl}/models` : `${cleanBaseUrl}/v1/models`;
+                    const res = await fetch(endpoint, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+                    const data = await res.json();
+                    if (data.data) {
+                        const gptModels = data.data.filter(m => m.id.toLowerCase().includes('gpt'));
+                        setModels(gptModels.sort((a, b) => a.id.localeCompare(b.id)));
+                        if (gptModels.length > 0 && !gptModels.find(m => m.id === currentModel)) setCurrentModel(gptModels[0].id);
+                    }
+                } catch (err) { console.error(err); } finally { setLoadingModels(false); }
+            };
+
+            const sendMessage = async (isImageGen = false) => {
+                if ((!input.trim() && !selectedFile) || isLoading) return;
+
+                setHasChatStarted(true);
+                const userMsgContent = input;
+                const userFile = selectedFile;
+                setInput(''); setSelectedFile(null);
+                if (textareaRef.current) textareaRef.current.style.height = 'auto';
+
+                const newMessages = [...messages, { role: 'user', content: userMsgContent, image: userFile }];
+                setMessages(newMessages);
+                setIsLoading(true);
+
+                try {
+                    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
+                    
+                    if (isImageGen) {
+                        const endpoint = `${cleanBaseUrl}/images/generations`;
+                        const response = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                            body: JSON.stringify({ model: 'nano-banana', prompt: userMsgContent, n: 1, size: "1024x1024" })
+                        });
+                        const data = await response.json();
+                        if (!response.ok) throw new Error(data.error?.message || '绘图失败');
+                        setMessages(prev => [...prev, { role: 'assistant', content: `![Generated Image](${data.data[0].url})` }]);
+                    } else {
+                        const endpoint = cleanBaseUrl.endsWith('/v1') ? `${cleanBaseUrl}/chat/completions` : `${cleanBaseUrl}/v1/chat/completions`;
+                        const apiMessages = newMessages.map(m => {
+                            if (m.image) return { role: m.role, content: [{ type: "text", text: m.content || "Image" }, { type: "image_url", image_url: { url: m.image } }] };
+                            return { role: m.role, content: m.content };
+                        });
+
+                        const response = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                            body: JSON.stringify({ model: currentModel, messages: apiMessages, stream: false })
+                        });
+                        const data = await response.json();
+                        if (!response.ok) throw new Error(data.error?.message || '请求失败');
+                        setMessages(prev => [...prev, { role: 'assistant', content: data.choices[0].message.content }]);
+                    }
+                } catch (err) {
+                    setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err.message}` }]);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleFileSelect = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setSelectedFile(reader.result);
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage(false);
+                }
+            };
+
+            // --- UI 组件 ---
+            
+            const SidebarItem = ({ icon, text, active = false }) => (
+                <div className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors group ${active ? 'bg-gray-200 text-black font-medium' : 'text-gray-600 hover:bg-gray-200/50'}`}>
+                    {icon}
+                    <span className="truncate flex-1">{text}</span>
+                </div>
+            );
+
+            const SidebarCategory = ({ title }) => (
+                <div className="px-3 mt-6 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wider opacity-60">
+                    {title}
+                </div>
+            );
+
+            return (
+                <div className="flex w-full h-full relative bg-white">
+                    
+                    {/* --- 1. 极简侧边栏 --- */}
+                    <div className={`${sidebarOpen ? 'w-[260px]' : 'w-0'} bg-[#f9f9f9] flex-shrink-0 flex flex-col transition-all duration-300 border-r border-gray-100 relative z-20 overflow-hidden`}>
+                        
+                        <div className="p-3 flex justify-between items-center">
+                            {/* 移动端关闭 */}
+                            <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-gray-200 rounded-md text-gray-500 lg:hidden">
+                                <PanelLeftClose size={20}/>
+                            </button>
+                            {/* 桌面端关闭 */}
+                            <button className="p-2 hover:bg-gray-200 rounded-md text-gray-500 hidden lg:block" title="收起侧边栏" onClick={() => setSidebarOpen(false)}>
+                                <PanelLeftClose size={20}/>
+                            </button>
+                            <button className="p-2 hover:bg-gray-200 rounded-md text-gray-500">
+                                <MessageSquarePlus size={20}/>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto px-3 pb-4 no-scrollbar">
+                            <SidebarItem icon={<Sparkles size={18}/>} text="ChatGPT" active />
+                            <SidebarItem icon={<LayoutGrid size={18}/>} text="探索 GPTs" />
+
+                            <SidebarCategory title="今天" />
+                            {/* 空记录，模拟新状态 */}
+                        </div>
+
+                        {/* 底部极其干净，只保留设置 */}
+                        <div className="p-2 border-t border-gray-200/50">
+                            <button 
+                                onClick={() => setShowSettings(true)}
+                                className="flex items-center gap-3 w-full px-3 py-3 rounded-xl hover:bg-gray-200 transition-colors text-sm text-gray-600"
+                            >
+                                <Settings size={18} />
+                                <span>设置</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* --- 2. 主内容区 --- */}
+                    <div className="flex-1 flex flex-col h-full relative bg-white min-w-0">
+                        
+                        {/* 顶部栏 */}
+                        <div className="h-14 flex items-center justify-between px-4 absolute top-0 left-0 right-0 z-10 bg-white/80 backdrop-blur-sm">
+                            <div className="flex items-center min-w-0">
+                                {!sidebarOpen && (
+                                    <button onClick={() => setSidebarOpen(true)} className="p-2 mr-2 hover:bg-gray-100 rounded-md text-gray-500">
+                                        <PanelLeftOpen size={20}/>
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => { setShowModelMenu(!showModelMenu); if(!showModelMenu) fetchModels(); }}
+                                    className="flex items-center gap-1 text-lg font-semibold text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition-colors group truncate"
+                                >
+                                    <span className="truncate">{currentModel === 'nano-banana' ? 'ChatGPT 5.1' : currentModel}</span>
+                                    <ChevronDown size={16} className="text-gray-400 group-hover:text-gray-600 flex-shrink-0"/>
+                                </button>
+
+                                {showModelMenu && (
+                                    <div className="absolute top-12 left-4 bg-white border border-gray-200 rounded-xl shadow-xl z-50 w-64 py-1 animate-fade-in">
+                                        <div className="px-3 py-2 text-xs font-medium text-gray-400 border-b border-gray-100">{loadingModels ? '加载中...' : '切换模型'}</div>
+                                        <div className="max-h-64 overflow-y-auto">
+                                            {models.length > 0 ? models.map(m => (
+                                                <button key={m.id} onClick={() => { setCurrentModel(m.id); setShowModelMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 text-gray-700 flex justify-between items-center">
+                                                    {m.id} {currentModel === m.id && <CheckCircle2 size={14} className="text-green-500"/>}
+                                                </button>
+                                            )) : <div className="px-4 py-2 text-sm text-gray-500">请在设置中配置 Key</div>}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="flex gap-2 flex-shrink-0">
+                                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 cursor-pointer"><UserCircle2 size={20}/></div>
+                            </div>
+                        </div>
+
+                        {/* 中间内容区域 (滚动) */}
+                        <div className="flex-1 overflow-y-auto relative pb-40 scroll-smooth">
+                            {!hasChatStarted ? (
+                                /* 初始状态 */
+                                <div className="h-full flex flex-col items-center justify-center px-4 pb-20 animate-fade-in">
+                                    <div className="text-center mb-8">
+                                        <div className="bg-white p-4 rounded-full inline-block mb-6 shadow-sm border border-gray-100">
+                                            <Bot size={48} className="text-gray-800" />
+                                        </div>
+                                        <h1 className="text-2xl md:text-3xl font-semibold text-gray-800 mb-2">有什么可以帮忙的?</h1>
+                                    </div>
+                                    {/* 快捷建议 (仅展示用) */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-2xl opacity-60">
+                                        <button className="p-3 border border-gray-200 rounded-xl text-left hover:bg-gray-50 text-sm transition-colors hidden md:block">
+                                            <div className="font-medium text-gray-700">生成一张插画</div>
+                                            <div className="text-gray-500 text-xs">赛博朋克风格的城市...</div>
+                                        </button>
+                                        <button className="p-3 border border-gray-200 rounded-xl text-left hover:bg-gray-50 text-sm transition-colors hidden md:block">
+                                            <div className="font-medium text-gray-700">制定旅行计划</div>
+                                            <div className="text-gray-500 text-xs">去日本东京玩5天...</div>
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* 聊天消息列表 */
+                                <div className="w-full max-w-3xl mx-auto pt-20 px-4">
+                                    {messages.map((msg, idx) => (
+                                        <div key={idx} className={`flex gap-4 mb-8 msg-animate group ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${msg.role === 'user' ? 'bg-gray-100' : 'bg-white border border-gray-200'}`}>
+                                                {msg.role === 'user' ? <User size={16} className="text-gray-600"/> : <Bot size={18} className="text-green-600"/>}
+                                            </div>
+                                            <div className={`relative max-w-[90%] md:max-w-[85%] text-[15px] leading-7 ${msg.role === 'user' ? 'bg-[#f4f4f4] px-4 py-2.5 rounded-2xl rounded-tr-sm text-gray-800' : 'text-gray-800 pt-1'}`}>
+                                                {msg.image && <img src={msg.image} className="max-w-sm rounded-lg mb-3 border border-gray-200" />}
+                                                <div className="prose" dangerouslySetInnerHTML={{ __html: marked.parse(msg.content || '') }} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {isLoading && (
+                                        <div className="flex gap-4 mb-6">
+                                            <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center"><Bot size={18} className="text-green-600"/></div>
+                                            <div className="flex items-center gap-1 h-6 pt-2">
+                                                <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce"></div>
+                                                <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce delay-75"></div>
+                                                <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce delay-150"></div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div ref={messagesEndRef} />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 底部输入栏 (始终固定在底部，宽度自适应) */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-6 px-4 z-20">
+                            <div className="max-w-3xl mx-auto relative w-full">
+                                {selectedFile && (
+                                    <div className="absolute bottom-full left-0 mb-2 p-2 bg-white shadow-lg border border-gray-100 rounded-lg flex items-center gap-2 animate-fade-in">
+                                        <img src={selectedFile} className="w-12 h-12 rounded-md object-cover" />
+                                        <button onClick={() => setSelectedFile(null)} className="absolute -top-1 -right-1 bg-white rounded-full shadow border border-gray-200 hover:bg-gray-100"><X size={14} className="text-gray-500"/></button>
+                                    </div>
+                                )}
+                                <div className="bg-[#f4f4f4] rounded-[26px] border border-transparent focus-within:bg-white focus-within:border-gray-200 focus-within:shadow-lg transition-all input-shadow flex items-end p-2 gap-2 w-full">
+                                    <button onClick={() => fileInputRef.current?.click()} className="p-2.5 text-gray-400 hover:text-gray-800 bg-transparent hover:bg-gray-200 rounded-full transition-colors flex-shrink-0">
+                                        <Plus size={20} />
+                                    </button>
+                                    <textarea 
+                                        ref={textareaRef}
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder="发送消息..."
+                                        className="flex-1 bg-transparent border-none outline-none text-gray-700 text-base py-3 resize-none min-h-[44px] max-h-[200px] placeholder-gray-400"
+                                        rows={1}
+                                    />
+                                    <button 
+                                        onClick={() => sendMessage(false)}
+                                        className={`p-2 rounded-full transition-all duration-200 flex-shrink-0 ${input.trim() || selectedFile ? 'bg-black text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                                        disabled={!input.trim() && !selectedFile}
+                                    >
+                                        <ArrowRight size={18} />
+                                    </button>
+                                </div>
+                                <p className="text-xs text-gray-400 text-center mt-2">Doro AI can make mistakes. Check important info.</p>
+                            </div>
+                        </div>
+
+                        {/* 悬浮按钮 (固定在右下角) */}
+                        <div className="absolute bottom-6 right-6 z-30 hidden lg:block">
+                            <button className="w-9 h-9 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors">
+                                <Grip size={16}/>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 隐藏的文件输入 */}
+                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileSelect} />
+
+                    {/* 设置弹窗 */}
+                    {showSettings && (
+                        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+                            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 transform transition-all">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-lg font-semibold text-gray-800">Settings</h3>
+                                    <button onClick={() => setShowSettings(false)}><X size={20} className="text-gray-400 hover:text-gray-600"/></button>
+                                </div>
+                                <div className="space-y-5">
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wider">API Key</label>
+                                        <div className="relative">
+                                            <Key size={16} className="absolute left-3 top-3 text-gray-400"/>
+                                            <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 pl-10 text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition-all" placeholder="sk-..." />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wider">Base URL</label>
+                                        <div className="relative">
+                                            <Globe size={16} className="absolute left-3 top-3 text-gray-400"/>
+                                            <input type="text" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 pl-10 text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition-all" placeholder="https://api.bltcy.ai/v1" />
+                                        </div>
+                                    </div>
+                                    <div className="pt-2">
+                                        <button onClick={() => {
+                                            localStorage.setItem('plato_api_key', apiKey);
+                                            localStorage.setItem('plato_base_url', baseUrl);
+                                            setShowSettings(false);
+                                            window.location.reload(); 
+                                        }} className="w-full py-2.5 text-sm bg-black text-white rounded-xl hover:bg-gray-800 font-medium transition-colors shadow-lg shadow-gray-200">Save changes</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
