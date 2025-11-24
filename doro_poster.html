@@ -96,8 +96,8 @@
             const [error, setError] = useState('');
             const [resultImage, setResultImage] = useState(null);
 
-            // 模型管理 (新功能)
-            const [model, setModel] = useState('nano-banana-pro'); // 默认尝试 pro
+            // 模型管理
+            const [model, setModel] = useState('nano-banana-pro'); 
             const [availableModels, setAvailableModels] = useState([]);
             const [loadingModels, setLoadingModels] = useState(false);
 
@@ -115,7 +115,7 @@
             // Text2Img
             const [prompt, setPrompt] = useState('');
 
-            // Fusion (默认 Prompt 优化)
+            // Fusion
             const [fusionBg, setFusionBg] = useState(null);
             const [fusionItems, setFusionItems] = useState([]);
             const [selectedItemId, setSelectedItemId] = useState(null);
@@ -146,11 +146,11 @@
                 if (storedKey) setApiKey(storedKey);
                 if (storedBaseUrl) setBaseUrl(storedBaseUrl);
 
-                const hasSeenTutorial = localStorage.getItem('doro_poster_tutorial_seen_v10'); 
+                const hasSeenTutorial = localStorage.getItem('doro_poster_tutorial_seen_v11'); 
                 if (!hasSeenTutorial) setShowTutorial(true);
             }, []);
 
-            // --- 模型获取功能 (新增) ---
+            // --- 模型获取功能 ---
             const fetchModels = async () => {
                 if (!apiKey) { setError('请先在设置中配置 API Key'); setShowSettings(true); return; }
                 setLoadingModels(true);
@@ -168,7 +168,6 @@
                     if (!response.ok) throw new Error(data.error?.message || '获取模型列表失败');
 
                     const allModels = data.data || [];
-                    // 过滤逻辑：只保留包含 nano 和 banana 的模型
                     const filtered = allModels.filter(m => {
                         const id = m.id.toLowerCase();
                         return id.includes('nano') && id.includes('banana');
@@ -179,8 +178,6 @@
                     }
 
                     setAvailableModels(filtered);
-                    
-                    // 智能设置默认值：优先选 Pro
                     const hasPro = filtered.find(m => m.id.toLowerCase().includes('pro'));
                     if (hasPro) {
                         setModel(hasPro.id);
@@ -304,18 +301,22 @@
                     const width = sizeMode === 'custom' ? parseInt(customW) : parseInt(presetSize.split('x')[0]);
                     const height = sizeMode === 'custom' ? parseInt(customH) : parseInt(presetSize.split('x')[1]);
                     
-                    let payload = { 
-                        model: model, // 使用选择的模型
-                        n: 1, 
-                        size: `${width}x${height}` 
-                    };
+                    let payload = { model: model, n: 1, size: `${width}x${height}` };
 
                     if (mode === 'fusion') {
                         if (!fusionBg) throw new Error("请先上传环境背景图");
                         const tempSelected = selectedItemId; setSelectedItemId(null);
                         await new Promise(r => setTimeout(r, 100));
                         if (!compositionRef.current) throw new Error("拼贴区域未加载");
-                        const canvas = await window.html2canvas(compositionRef.current, { useCORS: true, backgroundColor: null, scale: 2, logging: false });
+                        
+                        // 截图逻辑保持与 download 类似，但不下载，只转 base64
+                        const canvas = await window.html2canvas(compositionRef.current, { 
+                            useCORS: true, 
+                            backgroundColor: null, 
+                            scale: 2, // 上传给 AI 时使用 2 倍缩放，既保证清晰度又不至于过大
+                            logging: false 
+                        });
+                        
                         setSelectedItemId(tempSelected);
                         payload.prompt = fusionPrompt;
                         payload.image = canvas.toDataURL('image/png').split(',')[1];
@@ -340,15 +341,47 @@
                 } catch (err) { setError(err.message); } finally { setLoading(false); }
             };
 
+            // --- 核心修复：高清无损下载 ---
             const downloadPoster = async () => {
                 if (!posterRef.current) return;
                 try {
-                    const canvas = await window.html2canvas(posterRef.current, { useCORS: true, scale: 3, backgroundColor: '#000' });
+                    // 1. 获取目标真实尺寸
+                    const targetW = sizeMode === 'custom' ? parseInt(customW) : parseInt(presetSize.split('x')[0]);
+                    // 计算当前显示尺寸与目标尺寸的比例
+                    const currentW = posterRef.current.offsetWidth;
+                    const scaleRatio = targetW / currentW;
+
+                    // 2. 使用计算出的比例进行截图
+                    const canvas = await window.html2canvas(posterRef.current, { 
+                        useCORS: true, 
+                        scale: scaleRatio, // 智能缩放：让最终图片宽度 = 目标宽度
+                        backgroundColor: '#000',
+                        logging: false,
+                        scrollX: 0, 
+                        scrollY: 0,
+                        onclone: (clonedDoc) => {
+                            // 3. 强制修复克隆节点中的图片显示方式，防止拉伸
+                            const clonedPoster = clonedDoc.querySelector('[data-poster-container]');
+                            if (clonedPoster) {
+                                const img = clonedPoster.querySelector('img');
+                                if (img) {
+                                    // 强制填满，绕过 object-fit: contain 在某些情况下的 bug
+                                    // 因为容器比例已经锁定了，fill 是最安全的
+                                    img.style.objectFit = 'fill'; 
+                                    img.style.width = '100%';
+                                    img.style.height = '100%';
+                                }
+                            }
+                        }
+                    });
                     const link = document.createElement('a'); link.download = `doro-poster-${Date.now()}.png`; link.href = canvas.toDataURL('image/png'); link.click();
-                } catch (e) { setError("保存失败"); }
+                } catch (e) { 
+                    console.error(e);
+                    setError("保存失败，请尝试长按图片保存。"); 
+                }
             };
 
-            const closeTutorial = (dontShow) => { setShowTutorial(false); if (dontShow) localStorage.setItem('doro_poster_tutorial_seen_v10', 'true'); };
+            const closeTutorial = (dontShow) => { setShowTutorial(false); if (dontShow) localStorage.setItem('doro_poster_tutorial_seen_v11', 'true'); };
 
             const SizeSelector = () => (
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
@@ -389,19 +422,24 @@
                             <div className="flex items-center gap-3 lg:gap-6">
                                 <a href="index.html" className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white" title="返回主页"><ChevronLeft size={20} /></a>
                                 <div className="flex items-center gap-2">
-                                    <div className="bg-gradient-to-br from-sky-500 to-blue-600 p-1.5 rounded-lg shadow-lg shadow-sky-500/20 hidden sm:block"><LayoutTemplate size={18} className="text-white" /></div>
+                                    <div className="bg-gradient-to-br from-sky-500 to-blue-600 p-1.5 rounded-lg shadow-lg shadow-sky-500/20 hidden sm:block">
+                                        <LayoutTemplate size={18} className="text-white" />
+                                    </div>
                                     <span className="font-bold text-lg tracking-tight text-white">Poster <span className="text-sky-400 font-normal text-xs bg-sky-900/30 px-1.5 py-0.5 rounded border border-sky-500/20 ml-1">PRO</span></span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button onClick={() => setShowTutorial(true)} className="text-xs font-medium text-slate-300 hover:text-white flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-full transition-all"><GraduationCap size={14} className="text-purple-400"/> <span className="hidden sm:inline">教程</span></button>
-                                <button onClick={() => setShowSettings(!showSettings)} className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white"><Settings size={20} /></button>
+                                <button onClick={() => setShowTutorial(true)} className="text-xs font-medium text-slate-300 hover:text-white flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-full transition-all">
+                                    <GraduationCap size={14} className="text-purple-400"/> <span className="hidden sm:inline">教程</span>
+                                </button>
+                                <button onClick={() => setShowSettings(!showSettings)} className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white">
+                                    <Settings size={20} />
+                                </button>
                             </div>
                         </div>
                     </nav>
 
-                    {/* ... (Settings and Tutorial Modals - Same as before, kept hidden for brevity) ... */}
-                    {/* Settings Modal */}
+                    {/* Tutorial & Settings */}
                     {showSettings && (
                         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
                             <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
@@ -418,8 +456,12 @@
                                 <button onClick={() => closeTutorial(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white z-20 bg-slate-900/50 rounded-full p-1"><X size={20}/></button>
                                 <div className="flex flex-col md:flex-row h-full overflow-hidden">
                                     <div className="w-full md:w-56 bg-slate-950 border-b md:border-b-0 md:border-r border-slate-800 p-4 flex flex-row md:flex-col gap-2 shrink-0 overflow-x-auto">
-                                        <button onClick={() => setTutorialTab('fusion')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${tutorialTab === 'fusion' ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/20' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}><Layers size={16}/> 物品融合</button>
-                                        <button onClick={() => setTutorialTab('text2img')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${tutorialTab === 'text2img' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}><Sparkles size={16}/> 文生海报</button>
+                                        <button onClick={() => setTutorialTab('fusion')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${tutorialTab === 'fusion' ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/20' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}>
+                                            <Layers size={16}/> 物品融合
+                                        </button>
+                                        <button onClick={() => setTutorialTab('text2img')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${tutorialTab === 'text2img' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}>
+                                            <Sparkles size={16}/> 文生海报
+                                        </button>
                                     </div>
                                     <div className="flex-1 p-6 md:p-8 overflow-y-auto bg-slate-900">
                                         {tutorialTab === 'fusion' ? (
@@ -428,7 +470,7 @@
                                                 <p className="text-slate-400 text-sm">通过“拼贴 + AI重绘”，将产品完美融入任何背景。</p>
                                                 <div className="space-y-4">
                                                     <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50"><h4 className="text-white font-bold text-sm mb-1">1. 上传素材</h4><p className="text-xs text-slate-400">上传背景图 + 产品图（推荐透明底PNG）。</p></div>
-                                                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50"><h4 className="text-white font-bold text-sm mb-1">2. 调节融合度</h4><p className="text-xs text-slate-400">推荐使用 0.55 - 0.65 左右的数值，配合 "nano-banana-pro" 模型效果最佳。</p></div>
+                                                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50"><h4 className="text-white font-bold text-sm mb-1">2. 调节融合度</h4><p className="text-xs text-slate-400">推荐使用 0.55 - 0.65 左右的数值。</p></div>
                                                 </div>
                                             </div>
                                         ) : (
@@ -516,7 +558,7 @@
                                             <div className="flex justify-between mb-2"><label className="text-xs text-slate-400 font-bold flex items-center gap-1.5"><Sliders size={12}/> AI 融合程度</label><span className="text-xs text-purple-400 font-mono">{fusionStrength}</span></div>
                                             <input type="range" min="0.1" max="0.9" step="0.05" value={fusionStrength} onChange={e => setFusionStrength(e.target.value)} className="w-full mb-1"/>
                                         </div>
-                                        <textarea value={fusionPrompt} onChange={e => setFusionPrompt(e.target.value)} className="input-dark w-full h-24 rounded-xl p-3 text-xs resize-none leading-relaxed" placeholder="融合提示词 (可选)..."/>
+                                        <textarea value={fusionPrompt} onChange={e => setFusionPrompt(e.target.value)} className="input-dark w-full h-20 rounded-xl p-3 text-xs resize-none" placeholder="融合提示词 (可选)..."/>
                                     </div>
                                 )}
 
@@ -608,7 +650,11 @@
                                 {/* Result Image Display */}
                                 {resultImage && !loading && (
                                     <div className="flex flex-col gap-6 items-center animate-fade-in absolute inset-0 p-6 justify-center">
-                                        <div ref={posterRef} className="relative bg-black shadow-2xl shadow-black/50 overflow-hidden border border-slate-800" style={{ ...canvasStyle }}>
+                                        <div ref={posterRef} className="relative bg-black shadow-2xl shadow-black/50 overflow-hidden border border-slate-800" 
+                                            // 标记这个容器，以便 onclone 查找
+                                            data-poster-container="true"
+                                            style={{ ...canvasStyle }}
+                                        >
                                             <img src={resultImage} className="w-full h-full object-contain" crossOrigin="anonymous" />
                                             {mode === 'text2img' && (
                                                 <div className={`absolute inset-0 flex flex-col justify-end p-10 z-10 text-${textAlign}`}>
@@ -654,5 +700,3 @@
     </script>
 </body>
 </html>
-
-
