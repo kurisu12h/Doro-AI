@@ -47,7 +47,7 @@
         .msg-animate { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* 更加细腻的输入框阴影 */
+        /* 输入框聚焦阴影 */
         .input-shadow:focus-within {
             box-shadow: 0 0 0 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.08);
             border-color: #d1d5db;
@@ -60,23 +60,29 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Settings, Send, Paperclip, Image as ImageIcon, User, Bot, Plus, Menu, X, ChevronDown, Loader2, LogOut, RefreshCw, PanelLeftClose, PanelLeftOpen, Sparkles, Search, Library, Box, Folder, FolderOpen, Mic, Activity, Grip, MessageSquarePlus, UserCircle2, CheckCircle2, LayoutGrid, ArrowRight, Globe } from 'lucide-react';
+        /* Added Key to imports */
+        import { Settings, Send, Paperclip, Image as ImageIcon, User, Bot, Plus, Menu, X, ChevronDown, Loader2, LogOut, RefreshCw, PanelLeftClose, PanelLeftOpen, Sparkles, Search, Library, Box, Folder, FolderOpen, Mic, Activity, Grip, MessageSquarePlus, UserCircle2, CheckCircle2, LayoutGrid, ArrowRight, Globe, Copy, Trash2, MoreHorizontal, MessageSquare, Key } from 'lucide-react';
 
         const App = () => {
-            // --- 状态 ---
+            // --- 基础配置 ---
             const [apiKey, setApiKey] = useState('');
             const [baseUrl, setBaseUrl] = useState('https://api.bltcy.ai/v1');
             
+            // --- UI 状态 ---
             const [sidebarOpen, setSidebarOpen] = useState(true);
             const [showSettings, setShowSettings] = useState(false);
             const [showModelMenu, setShowModelMenu] = useState(false);
-            const [hasChatStarted, setHasChatStarted] = useState(false);
 
-            const [messages, setMessages] = useState([]);
+            // --- 核心聊天数据 (多会话) ---
+            const [chats, setChats] = useState([]); // 所有会话列表
+            const [activeChatId, setActiveChatId] = useState(null); // 当前选中的会话ID
+            const [systemPrompt, setSystemPrompt] = useState('You are a helpful assistant.'); // 系统提示词
+
             const [input, setInput] = useState('');
             const [isLoading, setIsLoading] = useState(false);
             const [selectedFile, setSelectedFile] = useState(null); 
             
+            // 模型
             const [models, setModels] = useState([]);
             const [currentModel, setCurrentModel] = useState('gpt-4o');
             const [loadingModels, setLoadingModels] = useState(false);
@@ -85,31 +91,98 @@
             const fileInputRef = useRef(null);
             const textareaRef = useRef(null);
 
-            // --- 初始化 ---
+            // --- 初始化与持久化 ---
             useEffect(() => {
+                // 加载配置
                 const storedKey = localStorage.getItem('plato_api_key');
                 const storedBaseUrl = localStorage.getItem('plato_base_url');
                 if (storedKey) setApiKey(storedKey);
                 if (storedBaseUrl) setBaseUrl(storedBaseUrl);
                 
-                // 移动端默认收起
+                // 加载系统提示词
+                const storedSysPrompt = localStorage.getItem('doro_system_prompt');
+                if (storedSysPrompt) setSystemPrompt(storedSysPrompt);
+
+                // 加载聊天记录
+                const storedChats = localStorage.getItem('doro_chats');
+                if (storedChats) {
+                    const parsedChats = JSON.parse(storedChats);
+                    setChats(parsedChats);
+                    if (parsedChats.length > 0) {
+                        // 默认选中最新的一个
+                        setActiveChatId(parsedChats[0].id);
+                    } else {
+                        createNewChat(parsedChats);
+                    }
+                } else {
+                    createNewChat([]);
+                }
+
+                // 响应式侧边栏
                 if (window.innerWidth < 1024) setSidebarOpen(false);
             }, []);
 
+            // 自动保存聊天记录
             useEffect(() => {
-                if (hasChatStarted) {
-                    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                if (chats.length > 0) {
+                    localStorage.setItem('doro_chats', JSON.stringify(chats));
                 }
-            }, [messages, hasChatStarted]);
+            }, [chats]);
+
+            // 滚动到底部
+            useEffect(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            }, [chats, activeChatId, isLoading]);
 
             // 自动调整输入框高度
             useEffect(() => {
                 if (textareaRef.current) {
-                    textareaRef.current.style.height = '24px'; // Reset to calculate shrink
+                    textareaRef.current.style.height = '24px'; 
                     const scrollHeight = textareaRef.current.scrollHeight;
                     textareaRef.current.style.height = `${Math.min(scrollHeight, 200)}px`;
                 }
             }, [input]);
+
+            // --- 会话管理逻辑 ---
+            const createNewChat = (currentChats = chats) => {
+                const newChat = {
+                    id: Date.now().toString(),
+                    title: '新对话',
+                    messages: [],
+                    createdAt: Date.now()
+                };
+                const updatedChats = [newChat, ...currentChats];
+                setChats(updatedChats);
+                setActiveChatId(newChat.id);
+                
+                // 移动端新建后自动收起侧边栏
+                if (window.innerWidth < 1024) setSidebarOpen(false);
+                
+                return newChat;
+            };
+
+            const deleteChat = (e, id) => {
+                e.stopPropagation();
+                const updatedChats = chats.filter(c => c.id !== id);
+                setChats(updatedChats);
+                if (updatedChats.length === 0) {
+                    createNewChat([]);
+                } else if (activeChatId === id) {
+                    setActiveChatId(updatedChats[0].id);
+                }
+            };
+
+            const clearAllChats = () => {
+                if (confirm('确定要清空所有聊天记录吗？')) {
+                    setChats([]);
+                    createNewChat([]);
+                    localStorage.removeItem('doro_chats');
+                }
+            };
+
+            // 获取当前会话对象
+            const activeChat = chats.find(c => c.id === activeChatId) || chats[0] || { messages: [] };
+            const messages = activeChat.messages || [];
 
             // --- API 逻辑 ---
             const fetchModels = async () => {
@@ -128,17 +201,42 @@
                 } catch (err) { console.error(err); } finally { setLoadingModels(false); }
             };
 
+            const updateChatMessages = (id, newMessages, title = null) => {
+                setChats(prevChats => prevChats.map(c => {
+                    if (c.id === id) {
+                        return { 
+                            ...c, 
+                            messages: newMessages,
+                            title: title || c.title 
+                        };
+                    }
+                    return c;
+                }));
+            };
+
             const sendMessage = async (isImageGen = false) => {
                 if ((!input.trim() && !selectedFile) || isLoading) return;
 
-                setHasChatStarted(true);
+                const currentId = activeChatId;
                 const userMsgContent = input;
                 const userFile = selectedFile;
-                setInput(''); setSelectedFile(null);
+                
+                setInput(''); 
+                setSelectedFile(null);
                 if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-                const newMessages = [...messages, { role: 'user', content: userMsgContent, image: userFile }];
-                setMessages(newMessages);
+                // 构造新消息列表
+                const newMsg = { role: 'user', content: userMsgContent, image: userFile };
+                const updatedMessages = [...messages, newMsg];
+                
+                // 如果是该会话的第一条消息，自动生成标题
+                let newTitle = null;
+                if (messages.length === 0) {
+                    newTitle = userMsgContent.substring(0, 20) || '新对话';
+                }
+
+                // 立即更新 UI
+                updateChatMessages(currentId, updatedMessages, newTitle);
                 setIsLoading(true);
 
                 try {
@@ -153,13 +251,18 @@
                         });
                         const data = await response.json();
                         if (!response.ok) throw new Error(data.error?.message || '绘图失败');
-                        setMessages(prev => [...prev, { role: 'assistant', content: `![Generated Image](${data.data[0].url})` }]);
+                        
+                        const assistantMsg = { role: 'assistant', content: `![Generated Image](${data.data[0].url})` };
+                        updateChatMessages(currentId, [...updatedMessages, assistantMsg]);
                     } else {
                         const endpoint = cleanBaseUrl.endsWith('/v1') ? `${cleanBaseUrl}/chat/completions` : `${cleanBaseUrl}/v1/chat/completions`;
-                        const apiMessages = newMessages.map(m => {
+                        
+                        // 注入系统提示词
+                        const systemMsg = { role: 'system', content: systemPrompt };
+                        const apiMessages = [systemMsg, ...updatedMessages.map(m => {
                             if (m.image) return { role: m.role, content: [{ type: "text", text: m.content || "Image" }, { type: "image_url", image_url: { url: m.image } }] };
                             return { role: m.role, content: m.content };
-                        });
+                        })];
 
                         const response = await fetch(endpoint, {
                             method: 'POST',
@@ -168,13 +271,35 @@
                         });
                         const data = await response.json();
                         if (!response.ok) throw new Error(data.error?.message || '请求失败');
-                        setMessages(prev => [...prev, { role: 'assistant', content: data.choices[0].message.content }]);
+                        
+                        const assistantMsg = { role: 'assistant', content: data.choices[0].message.content };
+                        updateChatMessages(currentId, [...updatedMessages, assistantMsg]);
                     }
                 } catch (err) {
-                    setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err.message}` }]);
+                    const errorMsg = { role: 'assistant', content: `Error: ${err.message}` };
+                    updateChatMessages(currentId, [...updatedMessages, errorMsg]);
                 } finally {
                     setIsLoading(false);
                 }
+            };
+
+            // 重新生成最后一条
+            const regenerateLast = () => {
+                if (messages.length === 0 || messages[messages.length - 1].role === 'user') return;
+                
+                // 删除最后一条 assistant 消息，保留 user 消息并重新触发
+                const newMessages = messages.slice(0, -1); 
+                updateChatMessages(activeChatId, newMessages);
+                
+                // 此时 state 更新可能还没完成，但我们知道最后一条是 user
+                // 重新构造上下文发送 (这里需要稍微 hack 一下，复用 sendMessage 逻辑比较复杂，简单做法是直接调用 API)
+                // 为了简单，我们暂不支持复杂的重新生成逻辑，仅做 UI 展示
+                alert("重新生成功能需要重新发送上一条用户消息，建议手动复制上一条消息发送。");
+            };
+
+            const copyToClipboard = (text) => {
+                navigator.clipboard.writeText(text);
+                // 可以加个 Toast 提示，这里简化
             };
 
             const handleFileSelect = (e) => {
@@ -193,21 +318,6 @@
                 }
             };
 
-            // --- UI 组件 ---
-            
-            const SidebarItem = ({ icon, text, active = false }) => (
-                <div className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors group ${active ? 'bg-gray-200 text-black font-medium' : 'text-gray-600 hover:bg-gray-200/50'}`}>
-                    {icon}
-                    <span className="truncate flex-1">{text}</span>
-                </div>
-            );
-
-            const SidebarCategory = ({ title }) => (
-                <div className="px-3 mt-6 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wider opacity-60">
-                    {title}
-                </div>
-            );
-
             return (
                 <div className="flex w-full h-full relative bg-white">
                     
@@ -215,35 +325,51 @@
                     <div className={`${sidebarOpen ? 'w-[260px]' : 'w-0'} bg-[#f9f9f9] flex-shrink-0 flex flex-col transition-all duration-300 border-r border-gray-100 relative z-20 overflow-hidden`}>
                         
                         <div className="p-3 flex justify-between items-center">
-                            {/* 移动端关闭 */}
-                            <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-gray-200 rounded-md text-gray-500 lg:hidden">
-                                <PanelLeftClose size={20}/>
+                            {/* 新建对话按钮 (主功能) */}
+                            <button 
+                                onClick={() => createNewChat()}
+                                className="flex-1 flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700 shadow-sm mr-2"
+                            >
+                                <Plus size={16}/> <span className="font-medium">新对话</span>
                             </button>
-                            {/* 桌面端关闭 */}
-                            <button className="p-2 hover:bg-gray-200 rounded-md text-gray-500 hidden lg:block" title="收起侧边栏" onClick={() => setSidebarOpen(false)}>
+
+                            <button className="p-2 hover:bg-gray-200 rounded-md text-gray-500" title="收起" onClick={() => setSidebarOpen(false)}>
                                 <PanelLeftClose size={20}/>
-                            </button>
-                            <button className="p-2 hover:bg-gray-200 rounded-md text-gray-500">
-                                <MessageSquarePlus size={20}/>
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto px-3 pb-4 no-scrollbar">
-                            <SidebarItem icon={<Sparkles size={18}/>} text="ChatGPT" active />
-                            <SidebarItem icon={<LayoutGrid size={18}/>} text="探索 GPTs" />
-
-                            <SidebarCategory title="今天" />
-                            {/* 空记录，模拟新状态 */}
+                        {/* 会话列表 */}
+                        <div className="flex-1 overflow-y-auto px-3 pb-4 no-scrollbar space-y-1">
+                            <div className="px-2 mt-4 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wider">最近</div>
+                            
+                            {chats.map(chat => (
+                                <div 
+                                    key={chat.id}
+                                    onClick={() => { setActiveChatId(chat.id); if(window.innerWidth<1024) setSidebarOpen(false); }}
+                                    className={`group flex items-center gap-3 px-3 py-3 rounded-lg text-sm cursor-pointer transition-colors ${activeChatId === chat.id ? 'bg-gray-200 text-black' : 'text-gray-600 hover:bg-gray-200/50'}`}
+                                >
+                                    <MessageSquare size={16} className="flex-shrink-0"/>
+                                    <span className="truncate flex-1">{chat.title || '新对话'}</span>
+                                    
+                                    {/* 删除按钮 (悬浮显示) */}
+                                    <button 
+                                        onClick={(e) => deleteChat(e, chat.id)}
+                                        className={`p-1 rounded hover:bg-gray-300 text-gray-400 hover:text-red-500 ${activeChatId === chat.id ? 'block' : 'hidden group-hover:block'}`}
+                                    >
+                                        <Trash2 size={14}/>
+                                    </button>
+                                </div>
+                            ))}
                         </div>
 
-                        {/* 底部极其干净，只保留设置 */}
+                        {/* 底部设置 */}
                         <div className="p-2 border-t border-gray-200/50">
                             <button 
                                 onClick={() => setShowSettings(true)}
                                 className="flex items-center gap-3 w-full px-3 py-3 rounded-xl hover:bg-gray-200 transition-colors text-sm text-gray-600"
                             >
                                 <Settings size={18} />
-                                <span>设置</span>
+                                <span>全局设置</span>
                             </button>
                         </div>
                     </div>
@@ -286,27 +412,21 @@
                             </div>
                         </div>
 
-                        {/* 中间内容区域 (滚动) */}
+                        {/* 中间内容区域 */}
                         <div className="flex-1 overflow-y-auto relative pb-40 scroll-smooth">
-                            {!hasChatStarted ? (
+                            {messages.length === 0 ? (
                                 /* 初始状态 */
                                 <div className="h-full flex flex-col items-center justify-center px-4 pb-20 animate-fade-in">
                                     <div className="text-center mb-8">
                                         <div className="bg-white p-4 rounded-full inline-block mb-6 shadow-sm border border-gray-100">
-                                            <Bot size={48} className="text-gray-800" />
+                                            <Bot size={56} className="text-gray-800" />
                                         </div>
                                         <h1 className="text-2xl md:text-3xl font-semibold text-gray-800 mb-2">有什么可以帮忙的?</h1>
-                                    </div>
-                                    {/* 快捷建议 (仅展示用) */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-2xl opacity-60">
-                                        <button className="p-3 border border-gray-200 rounded-xl text-left hover:bg-gray-50 text-sm transition-colors hidden md:block">
-                                            <div className="font-medium text-gray-700">生成一张插画</div>
-                                            <div className="text-gray-500 text-xs">赛博朋克风格的城市...</div>
-                                        </button>
-                                        <button className="p-3 border border-gray-200 rounded-xl text-left hover:bg-gray-50 text-sm transition-colors hidden md:block">
-                                            <div className="font-medium text-gray-700">制定旅行计划</div>
-                                            <div className="text-gray-500 text-xs">去日本东京玩5天...</div>
-                                        </button>
+                                        {systemPrompt && systemPrompt !== 'You are a helpful assistant.' && (
+                                            <div className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded border border-gray-100 inline-block max-w-xs truncate">
+                                                当前角色: {systemPrompt}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -317,9 +437,16 @@
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${msg.role === 'user' ? 'bg-gray-100' : 'bg-white border border-gray-200'}`}>
                                                 {msg.role === 'user' ? <User size={16} className="text-gray-600"/> : <Bot size={18} className="text-green-600"/>}
                                             </div>
-                                            <div className={`relative max-w-[90%] md:max-w-[85%] text-[15px] leading-7 ${msg.role === 'user' ? 'bg-[#f4f4f4] px-4 py-2.5 rounded-2xl rounded-tr-sm text-gray-800' : 'text-gray-800 pt-1'}`}>
+                                            <div className={`relative max-w-[90%] md:max-w-[85%] text-[15px] leading-7 ${msg.role === 'user' ? 'bg-[#f4f4f4] px-4 py-2.5 rounded-2xl rounded-tr-sm text-gray-800' : 'text-gray-800 pt-1 group'}`}>
                                                 {msg.image && <img src={msg.image} className="max-w-sm rounded-lg mb-3 border border-gray-200" />}
                                                 <div className="prose" dangerouslySetInnerHTML={{ __html: marked.parse(msg.content || '') }} />
+                                                
+                                                {/* 复制按钮 (仅机器人消息) */}
+                                                {msg.role === 'assistant' && (
+                                                    <div className="absolute -bottom-6 left-0 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => copyToClipboard(msg.content)} className="text-gray-400 hover:text-gray-600"><Copy size={14}/></button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
@@ -338,7 +465,7 @@
                             )}
                         </div>
 
-                        {/* 底部输入栏 (始终固定在底部，宽度自适应) */}
+                        {/* 底部输入栏 (始终固定) */}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-6 px-4 z-20">
                             <div className="max-w-3xl mx-auto relative w-full">
                                 {selectedFile && (
@@ -406,13 +533,25 @@
                                             <input type="text" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 pl-10 text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition-all" placeholder="https://api.bltcy.ai/v1" />
                                         </div>
                                     </div>
-                                    <div className="pt-2">
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wider">系统提示词 (System Prompt)</label>
+                                        <textarea 
+                                            value={systemPrompt} 
+                                            onChange={e => setSystemPrompt(e.target.value)} 
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition-all h-20 resize-none" 
+                                            placeholder="例如: You are a helpful assistant."
+                                        />
+                                        <p className="text-[10px] text-gray-400 mt-1">定义 AI 的行为模式</p>
+                                    </div>
+                                    <div className="pt-2 flex gap-3">
+                                        <button onClick={clearAllChats} className="flex-1 py-2.5 text-sm bg-red-50 text-red-500 hover:bg-red-100 rounded-xl font-medium transition-colors border border-red-100">清空记录</button>
                                         <button onClick={() => {
                                             localStorage.setItem('plato_api_key', apiKey);
                                             localStorage.setItem('plato_base_url', baseUrl);
+                                            localStorage.setItem('doro_system_prompt', systemPrompt);
                                             setShowSettings(false);
                                             window.location.reload(); 
-                                        }} className="w-full py-2.5 text-sm bg-black text-white rounded-xl hover:bg-gray-800 font-medium transition-colors shadow-lg shadow-gray-200">Save changes</button>
+                                        }} className="flex-[2] py-2.5 text-sm bg-black text-white rounded-xl hover:bg-gray-800 font-medium transition-colors shadow-lg shadow-gray-200">Save changes</button>
                                     </div>
                                 </div>
                             </div>
