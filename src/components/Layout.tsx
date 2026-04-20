@@ -38,7 +38,7 @@ export default function Layout() {
           >
             <Menu size={20} />
           </button>
-          <span className="text-white font-semibold text-sm tracking-tight">AI Helper</span>
+          <span className="text-white font-semibold text-sm tracking-tight">Doro AI</span>
         </div>
 
         <Outlet />

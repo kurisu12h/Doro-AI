@@ -51,7 +51,7 @@ export default function Sidebar({ onClose }: Props) {
         <div className="w-8 h-8 rounded-lg bg-[#0071e3] flex items-center justify-center shrink-0">
           <Bot size={16} className="text-white" />
         </div>
-        <span className="flex-1 font-semibold text-white tracking-tight text-sm">AI Helper</span>
+        <span className="flex-1 font-semibold text-white tracking-tight text-sm">Doro AI</span>
         {/* Close button — mobile only */}
         <button
           onClick={onClose}

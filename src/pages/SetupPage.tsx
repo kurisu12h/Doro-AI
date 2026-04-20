@@ -7,11 +7,11 @@ import { ONBOARDING_MODEL } from '../lib/models'
 
 interface OnboardMsg { role: 'assistant' | 'user'; text: string }
 
-const SYSTEM_PROMPT = `你是 AI Helper 的引导助手，帮助用户完成初始配置。请用简洁友好的中文与用户对话。
+const SYSTEM_PROMPT = `你是 Doro AI 的引导助手，帮助用户完成初始配置。请用简洁友好的中文与用户对话。
 引导步骤：介绍三大功能（文字对话、图片识别、图片生成），引导用户在下方输入框填写柏拉图平台 API Key（sk- 开头）。
 注意：不要让用户在聊天框里直接输入 key，填好后告知完成即可。`
 
-const WELCOME = `你好！我是 AI Helper 引导助手
+const WELCOME = `你好！我是 Doro AI 引导助手
 
 这里有三大核心功能：
 
@@ -103,7 +103,7 @@ export default function SetupPage() {
               <span className="text-white font-semibold text-sm tracking-tight">AI</span>
             </div>
             <div>
-              <p className="text-white font-semibold tracking-tight">AI Helper</p>
+              <p className="text-white font-semibold tracking-tight">Doro AI</p>
               <p className="text-white/40 text-xs tracking-tight">由 Gemini 3.1 Flash Lite 提供 · 免费</p>
             </div>
           </div>
