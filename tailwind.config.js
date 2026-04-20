@@ -34,6 +34,15 @@ export default {
         'apple-lg': '0px 8px 40px rgba(0,0,0,0.12)',
         'apple-sm': '0px 2px 8px rgba(0,0,0,0.08)',
       },
+      keyframes: {
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+      },
+      animation: {
+        shimmer: 'shimmer 1.5s infinite linear',
+      },
     },
   },
   plugins: [],

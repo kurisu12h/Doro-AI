@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Wand2, Download, Loader2, ImageIcon } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Wand2, Download, ImageIcon, Square } from 'lucide-react'
 import { useSettingsStore } from '../store/settingsStore'
 import { generateImage } from '../lib/openai'
 import ModelSelector from '../components/ModelSelector'
@@ -14,6 +14,13 @@ const SIZE_OPTIONS: { value: Size; label: string; ratio: string }[] = [
   { value: '1024x1792', label: '9:16 竖版', ratio: '1024×1792' },
 ]
 
+const PHASES = [
+  { at: 0,  label: '分析提示词…' },
+  { at: 15, label: '生成草图…' },
+  { at: 45, label: '渲染细节…' },
+  { at: 78, label: '最终优化…' },
+]
+
 export default function ImageGenPage() {
   const { apiKey, imageGenModel, setImageGenModel } = useSettingsStore()
   const [prompt, setPrompt] = useState('')
@@ -21,19 +28,56 @@ export default function ImageGenPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [results, setResults] = useState<GenResult[]>([])
+  const [progress, setProgress] = useState(0)
+  const [phase, setPhase] = useState('')
+  const abortRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    if (!loading) { setProgress(0); setPhase(''); return }
+
+    setProgress(0)
+    setPhase(PHASES[0].label)
+    let p = 0
+    const interval = setInterval(() => {
+      p = Math.min(p + 1, 95)
+      setProgress(p)
+      const current = [...PHASES].reverse().find((ph) => p >= ph.at)
+      if (current) setPhase(current.label)
+    }, 320)
+
+    return () => clearInterval(interval)
+  }, [loading])
 
   const generate = async () => {
     if (!prompt.trim() || loading || !apiKey) return
     setLoading(true)
     setError('')
+
+    let cancelled = false
+    abortRef.current = () => { cancelled = true }
+
     try {
       const url = await generateImage(apiKey, imageGenModel, prompt.trim(), size)
-      setResults((prev) => [{ prompt: prompt.trim(), url, size, model: imageGenModel }, ...prev])
+      if (!cancelled) {
+        setProgress(100)
+        setTimeout(() => {
+          setResults((prev) => [{ prompt: prompt.trim(), url, size, model: imageGenModel }, ...prev])
+          setLoading(false)
+        }, 300)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '生成失败，请重试')
-    } finally {
-      setLoading(false)
+      if (!cancelled) {
+        setError(err instanceof Error ? err.message : '生成失败，请重试')
+        setLoading(false)
+      }
     }
+  }
+
+  const stop = () => {
+    abortRef.current?.()
+    abortRef.current = null
+    setLoading(false)
+    setError('已取消')
   }
 
   return (
@@ -89,22 +133,51 @@ export default function ImageGenPage() {
           )}
           {error && <p className="text-xs text-red-500 tracking-tight">{error}</p>}
 
-          <button
-            onClick={generate}
-            disabled={!prompt.trim() || loading || !apiKey}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0071e3] text-white text-sm font-medium hover:opacity-85 disabled:opacity-30 transition-all duration-200 tracking-tight"
-          >
-            {loading ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
-            {loading ? '生成中…' : '生成图片'}
-            {!loading && <span className="text-xs opacity-50 font-normal">Ctrl+Enter</span>}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={generate}
+              disabled={!prompt.trim() || loading || !apiKey}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0071e3] text-white text-sm font-medium hover:opacity-85 disabled:opacity-30 transition-all duration-200 tracking-tight"
+            >
+              <Wand2 size={15} />
+              生成图片
+              {!loading && <span className="text-xs opacity-50 font-normal">Ctrl+Enter</span>}
+            </button>
+            {loading && (
+              <button
+                onClick={stop}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#1d1d1f] text-white text-sm font-medium hover:opacity-75 transition-all duration-200 tracking-tight"
+              >
+                <Square size={14} />
+                取消
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Loading */}
+        {/* Progress card */}
         {loading && (
-          <div className="flex flex-col items-center py-12 space-y-3 text-[rgba(0,0,0,0.56)]">
-            <Loader2 size={28} className="animate-spin text-[#0071e3]" />
-            <p className="text-sm font-medium tracking-tight">AI 正在创作中，大约 20–30 秒…</p>
+          <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.08)] space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-[#1d1d1f] tracking-tight">{phase}</p>
+              <span className="text-xs font-mono text-[rgba(0,0,0,0.36)]">{progress}%</span>
+            </div>
+            {/* Progress bar */}
+            <div className="w-full h-1.5 bg-[#f5f5f7] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#0071e3] rounded-full transition-all duration-300 ease-linear"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            {/* Skeleton placeholder */}
+            <div className="w-full aspect-square rounded-xl bg-[#f5f5f7] overflow-hidden relative">
+              <div className="absolute inset-0 animate-shimmer"
+                style={{
+                  background: 'linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.5) 50%, transparent 75%)',
+                  backgroundSize: '200% 100%',
+                }} />
+            </div>
+            <p className="text-xs text-[rgba(0,0,0,0.36)] tracking-tight text-center">AI 正在创作中，大约需要 20–40 秒</p>
           </div>
         )}
 
@@ -119,26 +192,50 @@ export default function ImageGenPage() {
         {/* Results grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {results.map((r, i) => (
-            <div key={i} className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
-              <img src={r.url} alt={r.prompt} className="w-full object-cover" />
-              <div className="p-3 space-y-2">
-                <p className="text-xs text-[rgba(0,0,0,0.56)] line-clamp-2 tracking-tight">{r.prompt}</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] px-2 py-1 rounded-lg bg-[#f5f5f7] font-mono text-[rgba(0,0,0,0.36)]">{r.size}</span>
-                    <span className="text-[10px] text-[rgba(0,0,0,0.36)] tracking-tight">{r.model}</span>
-                  </div>
-                  <button
-                    onClick={() => { const a = document.createElement('a'); a.href = r.url; a.download = `ai-${Date.now()}.png`; a.target = '_blank'; a.click() }}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#0071e3] text-[#0071e3] font-medium hover:bg-[#0071e3] hover:text-white transition-all duration-200 tracking-tight"
-                  >
-                    <Download size={12} />
-                    下载
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ResultCard key={i} result={r} />
           ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ResultCard({ result: r }: { result: GenResult }) {
+  const [imgError, setImgError] = useState(false)
+
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
+      {imgError ? (
+        <div className="w-full aspect-square bg-[#f5f5f7] flex flex-col items-center justify-center gap-2 text-[rgba(0,0,0,0.36)]">
+          <ImageIcon size={28} className="opacity-40" />
+          <p className="text-xs tracking-tight">图片加载失败</p>
+        </div>
+      ) : (
+        <img
+          src={r.url}
+          alt={r.prompt}
+          className="w-full object-cover"
+          onError={() => setImgError(true)}
+          crossOrigin="anonymous"
+        />
+      )}
+      <div className="p-3 space-y-2">
+        <p className="text-xs text-[rgba(0,0,0,0.56)] line-clamp-2 tracking-tight">{r.prompt}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] px-2 py-1 rounded-lg bg-[#f5f5f7] font-mono text-[rgba(0,0,0,0.36)]">{r.size}</span>
+            <span className="text-[10px] text-[rgba(0,0,0,0.36)] tracking-tight">{r.model}</span>
+          </div>
+          <a
+            href={r.url}
+            download={`ai-${Date.now()}.png`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#0071e3] text-[#0071e3] font-medium hover:bg-[#0071e3] hover:text-white transition-all duration-200 tracking-tight"
+          >
+            <Download size={12} />
+            下载
+          </a>
         </div>
       </div>
     </div>
