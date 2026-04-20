@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    letter-spacing: -0.374px;
+  }
+
+  body {
+    background: #f5f5f7;
+  }
+
+  * { box-sizing: border-box; }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.35); }
+}
+
+@layer utilities {
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* Markdown prose inside AI bubbles */
+.ai-prose h1,
+.ai-prose h2,
+.ai-prose h3 {
+  font-weight: 700;
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+  color: #1d1d1f;
+  letter-spacing: -0.28px;
+  line-height: 1.1;
+}
+.ai-prose h1 { font-size: 1.2rem; }
+.ai-prose h2 { font-size: 1.05rem; }
+.ai-prose h3 { font-size: 0.95rem; }
+.ai-prose p {
+  margin-bottom: 0.6em;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
+}
+.ai-prose ul,
+.ai-prose ol { padding-left: 1.25rem; margin-bottom: 0.6em; }
+.ai-prose li { margin-bottom: 0.25em; }
+.ai-prose code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82em;
+  background: rgba(0,0,0,0.06);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  letter-spacing: 0;
+}
+.ai-prose pre {
+  background: #1d1d1f;
+  color: #f5f5f7;
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin-bottom: 0.6em;
+}
+.ai-prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: 0.85em;
+}
+.ai-prose strong { font-weight: 700; color: #1d1d1f; }
+.ai-prose blockquote {
+  border-left: 3px solid #0071e3;
+  padding-left: 1rem;
+  color: rgba(0,0,0,0.56);
+  margin: 0.5em 0;
+}
+.ai-prose table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 0.6em;
+}
+.ai-prose th,
+.ai-prose td {
+  border: 1px solid rgba(0,0,0,0.1);
+  padding: 0.4em 0.75em;
+  font-size: 0.875rem;
+}
+.ai-prose th {
+  background: rgba(0,0,0,0.04);
+  font-weight: 600;
+}
+.ai-prose a {
+  color: #0066cc;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
