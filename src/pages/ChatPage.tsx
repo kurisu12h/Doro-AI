@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Paperclip, Trash2, Plus, X, ChevronDown, ChevronUp, FileText } from 'lucide-react'
+import { Send, Paperclip, Trash2, Plus, X, ChevronDown, ChevronUp, FileText, Square } from 'lucide-react'
 import { useConversationStore } from '../store/conversationStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { streamChat } from '../lib/openai'
@@ -31,6 +31,12 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  const stop = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -76,6 +82,9 @@ export default function ChatPage() {
     setPendingFiles([])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
 
+    const abort = new AbortController()
+    abortRef.current = abort
+
     await streamChat(
       apiKey,
       model,
@@ -85,11 +94,13 @@ export default function ChatPage() {
         { role: 'user', content: userContent as any },
       ],
       (chunk) => appendToLast(convId, chunk),
-      () => setStreaming(false),
+      () => { setStreaming(false); abortRef.current = null },
       (err) => {
         appendToLast(convId, `\n\n> **错误：** ${err.message}`)
         setStreaming(false)
+        abortRef.current = null
       },
+      abort.signal,
     )
   }
 
@@ -308,14 +319,24 @@ export default function ChatPage() {
             className="flex-1 px-4 py-2.5 text-sm rounded-xl border border-black/10 bg-white text-[#1d1d1f] outline-none focus:border-[#0071e3] focus:ring-1 focus:ring-[#0071e3] resize-none transition-all duration-200 disabled:opacity-40 leading-relaxed tracking-tight"
           />
 
-          {/* Send button */}
-          <button
-            onClick={send}
-            disabled={(!input.trim() && pendingFiles.length === 0) || isStreaming || !apiKey}
-            className="p-2.5 rounded-lg bg-[#0071e3] text-white hover:opacity-85 disabled:opacity-30 transition-all duration-200 shrink-0"
-          >
-            <Send size={16} />
-          </button>
+          {/* Stop / Send button */}
+          {isStreaming ? (
+            <button
+              onClick={stop}
+              className="p-2.5 rounded-lg bg-[#1d1d1f] text-white hover:opacity-75 transition-all duration-200 shrink-0"
+              title="停止生成"
+            >
+              <Square size={16} />
+            </button>
+          ) : (
+            <button
+              onClick={send}
+              disabled={(!input.trim() && pendingFiles.length === 0) || !apiKey}
+              className="p-2.5 rounded-lg bg-[#0071e3] text-white hover:opacity-85 disabled:opacity-30 transition-all duration-200 shrink-0"
+            >
+              <Send size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>

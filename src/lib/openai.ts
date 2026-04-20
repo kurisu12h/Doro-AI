@@ -23,20 +23,25 @@ export async function streamChat(
   onChunk: (text: string) => void,
   onDone: () => void,
   onError: (err: Error) => void,
+  signal?: AbortSignal,
 ) {
   try {
     const client = getClient(apiKey)
-    const stream = await client.chat.completions.create({
-      model,
-      messages,
-      stream: true,
-    })
+    const stream = await client.chat.completions.create(
+      { model, messages, stream: true },
+      { signal },
+    )
     for await (const chunk of stream) {
+      if (signal?.aborted) break
       const delta = chunk.choices[0]?.delta?.content ?? ''
       if (delta) onChunk(delta)
     }
     onDone()
   } catch (err) {
+    if (err instanceof Error && (err.name === 'AbortError' || signal?.aborted)) {
+      onDone()
+      return
+    }
     onError(err instanceof Error ? err : new Error(String(err)))
   }
 }
