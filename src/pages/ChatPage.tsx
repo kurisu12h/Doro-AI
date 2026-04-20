@@ -41,7 +41,11 @@ export default function ChatPage() {
 
   const generateImageInChat = async () => {
     const text = input.trim()
-    if (!text || isGeneratingImage || isStreaming || !apiKey || !conv) return
+    if (isGeneratingImage || isStreaming || !apiKey || !conv) return
+    if (!text) {
+      if (textareaRef.current) { textareaRef.current.focus(); textareaRef.current.placeholder = '请先输入图片描述…' }
+      return
+    }
     const convId = conv.id
     setIsGeneratingImage(true)
     setInput('')
@@ -312,23 +316,24 @@ export default function ChatPage() {
         )}
 
         <div className="flex gap-2 items-end">
-          {/* File button */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-lg bg-[#f5f5f7] text-[rgba(0,0,0,0.56)] hover:text-[#1d1d1f] transition-all duration-200 shrink-0"
-            title="上传文件（图片、代码、文本…）"
-          >
-            <Paperclip size={16} />
-          </button>
-          {/* Image gen button */}
-          <button
-            onClick={generateImageInChat}
-            disabled={!input.trim() || isStreaming || isGeneratingImage || !apiKey}
-            className="p-2 rounded-lg bg-[#f5f5f7] text-[rgba(0,0,0,0.56)] hover:text-[#0071e3] disabled:opacity-30 transition-all duration-200 shrink-0"
-            title={`生成图片（使用 ${imageGenModel}）`}
-          >
-            <Wand2 size={16} className={isGeneratingImage ? 'animate-pulse text-[#0071e3]' : ''} />
-          </button>
+          {/* Left action buttons — grouped so they stay aligned */}
+          <div className="flex gap-1 shrink-0 self-end pb-0.5">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 rounded-lg text-[rgba(0,0,0,0.40)] hover:text-[#1d1d1f] hover:bg-[#f5f5f7] transition-all duration-200"
+              title="上传文件"
+            >
+              <Paperclip size={16} />
+            </button>
+            <button
+              onClick={generateImageInChat}
+              disabled={isStreaming || isGeneratingImage || !apiKey}
+              className="p-2 rounded-lg text-[rgba(0,0,0,0.40)] hover:text-[#0071e3] hover:bg-[#f5f5f7] disabled:opacity-30 transition-all duration-200"
+              title="生成图片（输入描述后点击）"
+            >
+              <Wand2 size={16} className={isGeneratingImage ? 'animate-pulse text-[#0071e3]' : ''} />
+            </button>
+          </div>
           <input
             ref={fileInputRef}
             type="file"
