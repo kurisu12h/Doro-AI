@@ -92,6 +92,22 @@ export const MODELS: ModelConfig[] = [
     description: 'nano-banana-2 · 最高 4096×4096',
   },
   {
+    id: 'nano-banana-pro-2k',
+    name: 'Nano Banana Pro 2K',
+    provider: 'google',
+    tier: 'budget',
+    capabilities: ['image-gen'],
+    description: 'Flux 优化模型 · 最高 2K',
+  },
+  {
+    id: 'nano-banana-pro-4k',
+    name: 'Nano Banana Pro 4K',
+    provider: 'google',
+    tier: 'premium',
+    capabilities: ['image-gen'],
+    description: 'Flux 优化模型 · 最高 4K',
+  },
+  {
     id: 'gpt-image-2',
     name: 'GPT Image 2',
     provider: 'openai',
