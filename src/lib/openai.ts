@@ -46,6 +46,29 @@ export async function streamChat(
   }
 }
 
+export async function analyzeImage(
+  apiKey: string,
+  visionModel: string,
+  imageFile: File,
+  promptText: string,
+): Promise<string> {
+  const b64 = await new Promise<string>((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve((reader.result as string).split(',')[1])
+    reader.readAsDataURL(imageFile)
+  })
+  const client = getClient(apiKey)
+  const res = await client.chat.completions.create({
+    model: visionModel,
+    messages: [{ role: 'user', content: [
+      { type: 'image_url', image_url: { url: `data:${imageFile.type};base64,${b64}` } },
+      { type: 'text', text: promptText },
+    ]}],
+    max_tokens: 300,
+  })
+  return res.choices[0]?.message?.content?.trim() ?? ''
+}
+
 export async function analyzeClothingImage(
   apiKey: string,
   visionModel: string,

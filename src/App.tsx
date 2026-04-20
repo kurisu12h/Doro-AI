@@ -7,6 +7,7 @@ import ChatPage from './pages/ChatPage'
 import VisionPage from './pages/VisionPage'
 import ImageGenPage from './pages/ImageGenPage'
 import ClothingPage from './pages/ClothingPage'
+import PosterPage from './pages/PosterPage'
 import SettingsPage from './pages/SettingsPage'
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/vision" element={<VisionPage />} />
             <Route path="/imagegen" element={<ImageGenPage />} />
             <Route path="/clothing" element={<ClothingPage />} />
+            <Route path="/poster" element={<PosterPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/" element={<Navigate to="/chat" replace />} />
           </Route>
