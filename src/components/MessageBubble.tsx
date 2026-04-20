@@ -53,7 +53,7 @@ export default function MessageBubble({ message, isStreaming }: Props) {
         )}
 
         {/* Bubble */}
-        {message.content && (
+        {(message.content || isStreaming) && (
           <div
             className={`px-4 py-3 text-sm leading-relaxed tracking-tight ${
               isUser
@@ -63,12 +63,19 @@ export default function MessageBubble({ message, isStreaming }: Props) {
           >
             {isUser ? (
               <p className="whitespace-pre-wrap">{message.content}</p>
-            ) : (
+            ) : message.content ? (
               <div className="ai-prose">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
                 {isStreaming && (
                   <span className="inline-block w-1.5 h-4 ml-0.5 bg-[#0071e3] animate-pulse rounded-sm" />
                 )}
+              </div>
+            ) : (
+              /* Waiting for first token */
+              <div className="flex gap-1 items-center h-4">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3] animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3] animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3] animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             )}
           </div>

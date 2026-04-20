@@ -30,7 +30,7 @@ export interface Conversation {
 interface ConversationState {
   conversations: Conversation[]
   activeId: string | null
-  isStreaming: boolean
+  streamingId: string | null
 
   newConversation: () => string
   deleteConversation: (id: string) => void
@@ -40,7 +40,7 @@ interface ConversationState {
   setTitle: (id: string, title: string) => void
   addMessage: (convId: string, msg: Omit<Message, 'id' | 'timestamp'>) => void
   appendToLast: (convId: string, text: string) => void
-  setStreaming: (v: boolean) => void
+  setStreaming: (id: string | null) => void
   clearMessages: (convId: string) => void
 
   active: () => Conversation | null
@@ -69,7 +69,7 @@ export const useConversationStore = create<ConversationState>()(
     (set, get) => ({
       conversations: [],
       activeId: null,
-      isStreaming: false,
+      streamingId: null,
 
       newConversation: () => {
         const conv = makeConversation()
@@ -141,7 +141,7 @@ export const useConversationStore = create<ConversationState>()(
           }),
         })),
 
-      setStreaming: (isStreaming) => set({ isStreaming }),
+      setStreaming: (streamingId) => set({ streamingId }),
 
       clearMessages: (convId) =>
         set((s) => ({

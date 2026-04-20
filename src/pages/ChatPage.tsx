@@ -10,12 +10,12 @@ import ModelSelector from '../components/ModelSelector'
 export default function ChatPage() {
   const {
     conversations, activeId, newConversation, setActiveId,
-    addMessage, appendToLast, setStreaming, isStreaming,
+    addMessage, appendToLast, setStreaming, streamingId,
     clearMessages, setModel, setSystemPrompt, active,
   } = useConversationStore()
-  const { apiKey } = useSettingsStore()
-
   const conv = active()
+  const isStreaming = streamingId === conv?.id
+  const { apiKey } = useSettingsStore()
 
   useEffect(() => {
     if (!activeId || !conv) {
@@ -69,7 +69,7 @@ export default function ChatPage() {
       files: pendingFiles.map((f) => f.meta),
     })
     addMessage(convId, { role: 'assistant', content: '' })
-    setStreaming(true)
+    setStreaming(convId)
 
     const userContent = buildUserContent(text || '请分析以上内容', pendingFiles)
 
@@ -94,10 +94,10 @@ export default function ChatPage() {
         { role: 'user', content: userContent as any },
       ],
       (chunk) => appendToLast(convId, chunk),
-      () => { setStreaming(false); abortRef.current = null },
+      () => { setStreaming(null); abortRef.current = null },
       (err) => {
         appendToLast(convId, `\n\n> **错误：** ${err.message}`)
-        setStreaming(false)
+        setStreaming(null)
         abortRef.current = null
       },
       abort.signal,
@@ -233,7 +233,7 @@ export default function ChatPage() {
               key={msg.id}
               message={msg}
               isStreaming={
-                isStreaming &&
+                streamingId === conv?.id &&
                 i === arr.length - 1 &&
                 msg.role === 'assistant'
               }
