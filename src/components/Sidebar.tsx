@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Plus, MessageSquare, Image, Wand2, Settings, Trash2, Bot, Sun, Moon, X } from 'lucide-react'
+import { Plus, MessageSquare, Image, Wand2, Settings, Trash2, Bot, Sun, Moon, X, Shirt } from 'lucide-react'
 import { useConversationStore } from '../store/conversationStore'
 import { useSettingsStore } from '../store/settingsStore'
 
 const tools = [
   { to: '/vision',   icon: Image,    label: '图片识别' },
   { to: '/imagegen', icon: Wand2,    label: '图片生成' },
+  { to: '/clothing', icon: Shirt,    label: 'AI 换装' },
   { to: '/settings', icon: Settings, label: '设置' },
 ]
 
