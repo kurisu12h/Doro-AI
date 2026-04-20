@@ -107,14 +107,6 @@ export const MODELS: ModelConfig[] = [
     capabilities: ['image-gen'],
     description: 'Flux 优化模型 · 最高 4K',
   },
-  {
-    id: 'gpt-image-2',
-    name: 'GPT Image 2',
-    provider: 'openai',
-    tier: 'budget',
-    capabilities: ['image-gen'],
-    description: 'OpenAI 图像生成 · 0.4/张',
-  },
 ]
 
 export const ONBOARDING_MODEL = 'gemini-3.1-flash-lite-preview'

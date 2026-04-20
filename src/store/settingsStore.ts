@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { DEFAULT_CHAT_MODEL, DEFAULT_VISION_MODEL, DEFAULT_IMAGEGEN_MODEL } from '../lib/models'
+import { DEFAULT_CHAT_MODEL, DEFAULT_VISION_MODEL, DEFAULT_IMAGEGEN_MODEL, MODELS } from '../lib/models'
+
+const validImageGenIds = new Set(MODELS.filter(m => m.capabilities.includes('image-gen')).map(m => m.id))
 
 interface SettingsState {
   apiKey: string
@@ -33,6 +35,13 @@ export const useSettingsStore = create<SettingsState>()(
       setOnboardingDone: (onboardingDone) => set({ onboardingDone }),
       setTheme: (theme) => set({ theme }),
     }),
-    { name: 'ai-helper-settings' },
+    {
+      name: 'ai-helper-settings',
+      onRehydrateStorage: () => (state) => {
+        if (state && !validImageGenIds.has(state.imageGenModel)) {
+          state.imageGenModel = DEFAULT_IMAGEGEN_MODEL
+        }
+      },
+    },
   ),
 )
