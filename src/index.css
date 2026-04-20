@@ -111,3 +111,9 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+.ai-prose img {
+  max-width: 100%;
+  border-radius: 12px;
+  margin-top: 0.5em;
+  display: block;
+}

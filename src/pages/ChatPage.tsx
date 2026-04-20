@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Paperclip, Trash2, Plus, X, ChevronDown, ChevronUp, FileText, Square } from 'lucide-react'
+import { Send, Paperclip, Trash2, Plus, X, ChevronDown, ChevronUp, FileText, Square, Wand2 } from 'lucide-react'
 import { useConversationStore } from '../store/conversationStore'
 import { useSettingsStore } from '../store/settingsStore'
-import { streamChat } from '../lib/openai'
+import { streamChat, generateImage } from '../lib/openai'
 import { processFile, buildUserContent, formatBytes, type ProcessedFile } from '../lib/fileHandler'
 import MessageBubble from '../components/MessageBubble'
 import ModelSelector from '../components/ModelSelector'
@@ -15,7 +15,7 @@ export default function ChatPage() {
   } = useConversationStore()
   const conv = active()
   const isStreaming = streamingId === conv?.id
-  const { apiKey } = useSettingsStore()
+  const { apiKey, imageGenModel } = useSettingsStore()
 
   useEffect(() => {
     if (!activeId || !conv) {
@@ -28,6 +28,7 @@ export default function ChatPage() {
   const [pendingFiles, setPendingFiles] = useState<ProcessedFile[]>([])
   const [showSystem, setShowSystem] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -36,6 +37,27 @@ export default function ChatPage() {
   const stop = () => {
     abortRef.current?.abort()
     abortRef.current = null
+  }
+
+  const generateImageInChat = async () => {
+    const text = input.trim()
+    if (!text || isGeneratingImage || isStreaming || !apiKey || !conv) return
+    const convId = conv.id
+    setIsGeneratingImage(true)
+    setInput('')
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    addMessage(convId, { role: 'user', content: text })
+    addMessage(convId, { role: 'assistant', content: '' })
+    setStreaming(convId)
+    try {
+      const url = await generateImage(apiKey, imageGenModel, text)
+      appendToLast(convId, `![generated](${url})`)
+    } catch (err) {
+      appendToLast(convId, `> **图片生成失败：** ${err instanceof Error ? err.message : '请重试'}`)
+    } finally {
+      setStreaming(null)
+      setIsGeneratingImage(false)
+    }
   }
 
   useEffect(() => {
@@ -297,6 +319,15 @@ export default function ChatPage() {
             title="上传文件（图片、代码、文本…）"
           >
             <Paperclip size={16} />
+          </button>
+          {/* Image gen button */}
+          <button
+            onClick={generateImageInChat}
+            disabled={!input.trim() || isStreaming || isGeneratingImage || !apiKey}
+            className="p-2 rounded-lg bg-[#f5f5f7] text-[rgba(0,0,0,0.56)] hover:text-[#0071e3] disabled:opacity-30 transition-all duration-200 shrink-0"
+            title={`生成图片（使用 ${imageGenModel}）`}
+          >
+            <Wand2 size={16} className={isGeneratingImage ? 'animate-pulse text-[#0071e3]' : ''} />
           </button>
           <input
             ref={fileInputRef}
