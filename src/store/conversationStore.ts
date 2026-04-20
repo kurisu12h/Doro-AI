@@ -157,6 +157,9 @@ export const useConversationStore = create<ConversationState>()(
         return s.conversations.find((c) => c.id === s.activeId) ?? null
       },
     }),
-    { name: 'ai-helper-conversations' },
+    {
+      name: 'ai-helper-conversations',
+      partialize: (s) => ({ conversations: s.conversations, activeId: s.activeId }),
+    },
   ),
 )
