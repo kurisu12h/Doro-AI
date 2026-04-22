@@ -99,10 +99,12 @@ export default function ChatPage() {
 
     const userContent = buildUserContent(text || '请分析以上内容', pendingFiles)
 
-    const historyMsgs = conv.messages.map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }))
+    const historyMsgs = conv.messages
+      .filter((m) => !(m.role === 'assistant' && m.content === ''))
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }))
 
     setInput('')
     setPendingFiles([])

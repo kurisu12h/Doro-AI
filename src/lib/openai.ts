@@ -31,10 +31,18 @@ export async function streamChat(
       { model, messages, stream: true },
       { signal },
     )
+    let contentReceived = false
     for await (const chunk of stream) {
       if (signal?.aborted) break
       const delta = chunk.choices[0]?.delta?.content ?? ''
-      if (delta) onChunk(delta)
+      if (delta) {
+        contentReceived = true
+        onChunk(delta)
+      }
+    }
+    if (!contentReceived && !signal?.aborted) {
+      onError(new Error('未收到模型回复，请检查模型名称是否正确或稍后重试'))
+      return
     }
     onDone()
   } catch (err) {
